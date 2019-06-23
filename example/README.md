@@ -1,16 +1,68 @@
-# nfc_in_flutter_example
+# NFC in Flutter example
 
-Demonstrates how to use the nfc_in_flutter plugin.
+An example application to demonstrate NFC in Flutter.
 
-## Getting Started
+![Screenshot of the example app](README-photo.png)
 
-This project is a starting point for a Flutter application.
+It is easiest to run the app on an Android device as the iOS simulator can't do NFC and running it on a real device requires a bunch of code signing nonsense.
 
-A few resources to get you started if this is your first Flutter project:
+```shell
+$ flutter run
+```
 
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
+## Implementation
 
-For help getting started with Flutter, view our
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The app has a button in the top right corner that starts or stops listening for NFC tags.
+
+```dart
+RaisedButton(
+    child: Text(reading ? "Stop reading" : "Start reading"),
+    onPressed: () {
+        if (!reading) {
+            setState(() {
+                reading = true;
+                session = NFC.readNDEF()
+                    .listen((tag) {
+
+                    });
+            });
+        } else {
+            session?.cancel();
+            setState(() {
+                reading = false;
+            });
+        }
+    }
+);
+```
+
+When a tag is scanned, it inserts it in a list of scanned tags, which is then rendered in a `ListView`.
+
+```dart
+NFC.readNDEF()
+    .listen((tag) (
+        setState(() {
+            tags.insert(0, tag);
+        });
+    ));
+```
+
+When an error occurs it will show an `AlertDialog`, unless the error is a `NFCUserCanceledSessionException`.
+
+```dart
+NFC.readNDEF()
+    .listen((tag) {
+        // ...
+    }, onError: (error) {
+        if (!(error is NFCUserCanceledSessionException)) {
+            // It is up to you how many exceptions you want to check for.
+            showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                    title: const Text("Error!"),
+                    content: Text(e.toString()),
+                ),
+            );
+        }
+    });
+```

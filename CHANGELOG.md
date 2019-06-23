@@ -1,3 +1,4 @@
-## 0.0.1
+## 1.0.0
 
-* TODO: Describe initial release.
+* First release, woohoo!
+* Support for reading NDEF formatted NFC tags on both Android and iOS
