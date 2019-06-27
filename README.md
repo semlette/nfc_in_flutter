@@ -6,6 +6,27 @@ NFC in Flutter is a plugin for reading NFC tags in Flutter. It works on both And
 
 ## Usage
 
+### Read NFC tags
+
+```dart
+// NFC.readNDEF returns a stream of NDEFMessage
+Stream<NDEFMessage> stream = NFC.readNDEF()
+
+stream.listen((NDEFMessage message) {
+    print("records: ${message.records.length}");
+});
+```
+
+### Read one NFC tag
+
+```dart
+NDEFMessage message = await NFC.readNDEF(once: true).first;
+print("payload: ${message.payload}");
+// once: true` only scans one tag!
+```
+
+## Example
+
 ```dart
 import 'package:nfc_in_flutter/nfc_in_flutter.dart';
 
