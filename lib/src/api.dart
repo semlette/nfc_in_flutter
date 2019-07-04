@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import './exceptions.dart';
 import './messages.dart';
 
+enum NFCReaderMode { normal, foreground_dispatch }
+
 class NFC {
   static MethodChannel _channel = MethodChannel("nfc_in_flutter");
   static const EventChannel _eventChannel =
@@ -23,7 +25,10 @@ class NFC {
 
       /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
       /// should be thrown on iOS when the user clicks Cancel/Done.
-      bool throwOnUserCancel = true}) {
+      bool throwOnUserCancel = true,
+
+      /// TODO: Documentation
+      NFCReaderMode readerMode = NFCReaderMode.normal}) {
     if (_tagStream == null) {
       _tagStream = _eventChannel.receiveBroadcastStream().where((tag) {
         // In the future when more tag types are supported, this must be changed.
@@ -96,9 +101,19 @@ class NFC {
       return controller.close();
     });
 
+    String mode;
+    switch (readerMode) {
+      case NFCReaderMode.normal:
+        mode = "normal";
+        break;
+      case NFCReaderMode.foreground_dispatch:
+        mode = "foreground_dispatch";
+        break;
+    }
     // Start reading
     _channel.invokeMethod("startNDEFReading", {
       "scan_once": once,
+      "reader_mode": mode,
     });
 
     return controller.stream;

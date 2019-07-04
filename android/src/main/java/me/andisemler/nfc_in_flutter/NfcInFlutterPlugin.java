@@ -1,6 +1,9 @@
 package me.andisemler.nfc_in_flutter;
 
 import android.app.Activity;
+import android.app.PendingIntent;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -9,6 +12,7 @@ import android.nfc.Tag;
 import android.nfc.tech.Ndef;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -16,23 +20,29 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
 
 /**
  * NfcInFlutterPlugin
  */
-public class NfcInFlutterPlugin implements MethodCallHandler, EventChannel.StreamHandler, NfcAdapter.ReaderCallback {
+public class NfcInFlutterPlugin implements MethodCallHandler,
+        EventChannel.StreamHandler,
+        PluginRegistry.NewIntentListener,
+        NfcAdapter.ReaderCallback {
     private static final String LOG_TAG = "NfcInFlutterPlugin";
 
     private final Activity activity;
     private NfcAdapter adapter;
     private EventChannel.EventSink events;
+    private String currentReadingMode = null;
 
     /**
      * Plugin registration.
@@ -41,6 +51,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler, EventChannel.Strea
         final MethodChannel channel = new MethodChannel(registrar.messenger(), "nfc_in_flutter");
         final EventChannel tagChannel = new EventChannel(registrar.messenger(), "nfc_in_flutter/tags");
         NfcInFlutterPlugin plugin = new NfcInFlutterPlugin(registrar.activity());
+        registrar.addNewIntentListener(plugin);
         channel.setMethodCallHandler(plugin);
         tagChannel.setStreamHandler(plugin);
     }
@@ -56,6 +67,29 @@ public class NfcInFlutterPlugin implements MethodCallHandler, EventChannel.Strea
                 result.success(nfcIsEnabled());
                 break;
             case "startNDEFReading":
+                if (call.arguments instanceof HashMap) {
+                    HashMap args = (HashMap) call.arguments;
+                    String readerMode = (String) args.get("reader_mode");
+                    if (readerMode != null) {
+                        if (currentReadingMode != null && !readerMode.equals(currentReadingMode)) {
+                            // Throw error if the user tries to start reading with another reading mode
+                            // than the one currently active
+                            result.error("NFCMultipleReadingModes", "multiple reading modes", "");
+                            return;
+                        }
+                        switch (readerMode) {
+                            case "normal":
+                                startReading();
+                                break;
+                            case "foreground_dispatch":
+                                startReadingWithForegroundDispatch();
+                                break;
+                            default:
+                                result.error("NFCUnknownReaderMode", "unknown reader mode: " + readerMode, "");
+                        }
+                        return;
+                    }
+                }
                 startReading();
                 result.success(null);
                 break;
@@ -77,6 +111,30 @@ public class NfcInFlutterPlugin implements MethodCallHandler, EventChannel.Strea
         adapter.enableReaderMode(activity, this, NfcAdapter.FLAG_READER_NFC_A, bundle);
     }
 
+    private void startReadingWithForegroundDispatch() {
+        adapter = NfcAdapter.getDefaultAdapter(activity);
+        if (adapter == null) return;
+        Intent intent = new Intent(activity.getApplicationContext(), activity.getClass());
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(activity.getApplicationContext(), 0, intent, 0);
+
+        IntentFilter[] filters = new IntentFilter[1];
+        String[][] techList = new String[][]{};
+
+        filters[0] = new IntentFilter();
+        filters[0].addAction(NfcAdapter.ACTION_NDEF_DISCOVERED);
+        filters[0].addCategory(Intent.CATEGORY_DEFAULT);
+        try {
+            filters[0].addDataType("text/plain");
+        } catch (IntentFilter.MalformedMimeTypeException e) {
+            // TODO: THROW THE ERROR
+            return;
+        }
+
+        adapter.enableForegroundDispatch(activity, pendingIntent, filters, techList);
+    }
+
     @Override
     public void onListen(Object args, EventChannel.EventSink eventSink) {
         events = eventSink;
@@ -85,10 +143,16 @@ public class NfcInFlutterPlugin implements MethodCallHandler, EventChannel.Strea
     @Override
     public void onCancel(Object args) {
         events = null;
+        currentReadingMode = null;
     }
 
     @Override
     public void onTagDiscovered(Tag tag) {
+        handleNDEFTag(tag);
+    }
+
+    private void handleNDEFTag(Tag tag) {
+        Log.i(LOG_TAG, "new tag");
         Ndef ndef = Ndef.get(tag);
         if (ndef == null) {
             // tag is not in NDEF format; skip!
@@ -158,4 +222,34 @@ public class NfcInFlutterPlugin implements MethodCallHandler, EventChannel.Strea
         mainThread.post(runnable);
     }
 
+    @Override
+    public boolean onNewIntent(Intent intent) {
+        String action = intent.getAction();
+        if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
+
+            String type = intent.getType();
+            if (Objects.equals(type, "text/plain")) {
+
+                Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+                handleNDEFTag(tag);
+                return true;
+            } else {
+                Log.d(LOG_TAG, "Wrong mime type: " + type);
+            }
+        } else if (NfcAdapter.ACTION_TECH_DISCOVERED.equals(action)) {
+
+            // In case we would still use the Tech Discovered Intent
+            Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+            String[] techList = tag.getTechList();
+            String searchedTech = Ndef.class.getName();
+
+            for (String tech : techList) {
+                if (searchedTech.equals(tech)) {
+                    handleNDEFTag(tag);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }

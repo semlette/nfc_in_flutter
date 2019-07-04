@@ -24,7 +24,7 @@ class _MyAppState extends State<MyApp> {
   // tags in state
   void _readNFC(BuildContext context) {
     // ignore: cancel_subscriptions
-    StreamSubscription<NDEFMessage> subscription = NFC.readNDEF().listen((tag) {
+    StreamSubscription<NDEFMessage> subscription = NFC.readNDEF(readerMode: NFCReaderMode.foreground_dispatch).listen((tag) {
       // On new tag, add it to state
       setState(() {
         _tags.insert(0, tag);
