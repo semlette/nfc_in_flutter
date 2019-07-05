@@ -148,10 +148,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     @Override
     public void onTagDiscovered(Tag tag) {
-        handleNDEFTag(tag);
-    }
-
-    private void handleNDEFTag(Tag tag) {
         Log.i(LOG_TAG, "new tag");
         Ndef ndef = Ndef.get(tag);
         if (ndef == null) {
@@ -159,25 +155,19 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             return;
         }
         try {
-            final Map<String, Object> result = new HashMap<>();
-            List<Map<String, String>> records = new ArrayList<>();
             ndef.connect();
             NdefMessage message = ndef.getNdefMessage();
             if (message == null) {
                 return;
             }
-            for (NdefRecord record : message.getRecords()) {
-                Map<String, String> recordMap = new HashMap<>();
-                recordMap.put("payload", new String(record.getPayload(), StandardCharsets.UTF_8));
-                recordMap.put("id", new String(record.getId(), StandardCharsets.UTF_8));
-                recordMap.put("type", new String(record.getType(), StandardCharsets.UTF_8));
-                recordMap.put("tnf", String.valueOf(record.getTnf()));
-                records.add(recordMap);
-            }
-            result.put("message_type", "ndef");
-            result.put("type", ndef.getType());
-            result.put("records", records);
-            eventSuccess(result);
+            eventSuccess(formatNDEFMessageToResult(ndef, message));
+        } catch (IOException e) {
+            Map<String, Object> details = new HashMap<>();
+            details.put("fatal", true);
+            eventError("IOError", e.getMessage(), details);
+        } catch (FormatException e) {
+            eventError("NDEFBadFormatError", e.getMessage(), null);
+        } finally {
             try {
                 ndef.close();
             } catch (IOException e) {
@@ -185,13 +175,24 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 details.put("fatal", false);
                 eventError("IOError", e.getMessage(), details);
             }
-        } catch (IOException e) {
-            Map<String, Object> details = new HashMap<>();
-            details.put("fatal", true);
-            eventError("IOError", e.getMessage(), details);
-        } catch (FormatException e) {
-            eventError("NDEFBadFormatError", e.getMessage(), null);
         }
+    }
+
+    private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) {
+        final Map<String, Object> result = new HashMap<>();
+        List<Map<String, String>> records = new ArrayList<>();
+        for (NdefRecord record : message.getRecords()) {
+            Map<String, String> recordMap = new HashMap<>();
+            recordMap.put("payload", new String(record.getPayload(), StandardCharsets.UTF_8));
+            recordMap.put("id", new String(record.getId(), StandardCharsets.UTF_8));
+            recordMap.put("type", new String(record.getType(), StandardCharsets.UTF_8));
+            recordMap.put("tnf", String.valueOf(record.getTnf()));
+            records.add(recordMap);
+        }
+        result.put("message_type", "ndef");
+        result.put("type", ndef.getType());
+        result.put("records", records);
+        return result;
     }
 
     private void eventSuccess(final Object result) {
@@ -231,7 +232,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             if (Objects.equals(type, "text/plain")) {
 
                 Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-                handleNDEFTag(tag);
+                handleNDEFTagFromIntent(tag);
                 return true;
             } else {
                 Log.d(LOG_TAG, "Wrong mime type: " + type);
@@ -245,11 +246,21 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
             for (String tech : techList) {
                 if (searchedTech.equals(tech)) {
-                    handleNDEFTag(tag);
+                    handleNDEFTagFromIntent(tag);
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    private void handleNDEFTagFromIntent(Tag tag) {
+        Ndef ndef = Ndef.get(tag);
+        if (ndef == null) {
+            return;
+        }
+
+        NdefMessage message = ndef.getCachedNdefMessage();
+        eventSuccess(formatNDEFMessageToResult(ndef, message));
     }
 }
