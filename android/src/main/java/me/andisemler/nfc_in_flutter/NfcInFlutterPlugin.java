@@ -3,7 +3,6 @@ package me.andisemler.nfc_in_flutter;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -12,7 +11,6 @@ import android.nfc.Tag;
 import android.nfc.tech.Ndef;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -37,12 +34,12 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         EventChannel.StreamHandler,
         PluginRegistry.NewIntentListener,
         NfcAdapter.ReaderCallback {
-    private static final String LOG_TAG = "NfcInFlutterPlugin";
 
     private final Activity activity;
     private NfcAdapter adapter;
     private EventChannel.EventSink events;
-    private String currentReadingMode = null;
+
+    private String currentReaderMode = null;
 
     /**
      * Plugin registration.
@@ -67,30 +64,35 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 result.success(nfcIsEnabled());
                 break;
             case "startNDEFReading":
-                if (call.arguments instanceof HashMap) {
-                    HashMap args = (HashMap) call.arguments;
-                    String readerMode = (String) args.get("reader_mode");
-                    if (readerMode != null) {
-                        if (currentReadingMode != null && !readerMode.equals(currentReadingMode)) {
-                            // Throw error if the user tries to start reading with another reading mode
-                            // than the one currently active
-                            result.error("NFCMultipleReadingModes", "multiple reading modes", "");
-                            return;
-                        }
-                        switch (readerMode) {
-                            case "normal":
-                                startReading();
-                                break;
-                            case "foreground_dispatch":
-                                startReadingWithForegroundDispatch();
-                                break;
-                            default:
-                                result.error("NFCUnknownReaderMode", "unknown reader mode: " + readerMode, "");
-                        }
-                        return;
-                    }
+                if (!(call.arguments instanceof HashMap)) {
+                    result.error("MissingArguments", "startNDEFReading was called with no arguments", "");
+                    return;
                 }
-                startReading();
+                HashMap args = (HashMap) call.arguments;
+                String readerMode = (String) args.get("reader_mode");
+                if (readerMode == null) {
+                    result.error("MissingReaderMode", "startNDEFReading was called without a reader mode", "");
+                    return;
+                }
+
+                if (currentReaderMode != null && !readerMode.equals(currentReaderMode)) {
+                    // Throw error if the user tries to start reading with another reading mode
+                    // than the one currently active
+                    result.error("NFCMultipleReaderModes", "multiple reader modes", "");
+                    return;
+                }
+                currentReaderMode = readerMode;
+                switch (readerMode) {
+                    case "normal":
+                        startReading();
+                        break;
+                    case "dispatch":
+                        startReadingWithForegroundDispatch();
+                        break;
+                    default:
+                        result.error("NFCUnknownReaderMode", "unknown reader mode: " + readerMode, "");
+                        return;
+                }
                 result.success(null);
                 break;
             default:
@@ -118,21 +120,9 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         PendingIntent pendingIntent = PendingIntent.getActivity(activity.getApplicationContext(), 0, intent, 0);
-
-        IntentFilter[] filters = new IntentFilter[1];
         String[][] techList = new String[][]{};
 
-        filters[0] = new IntentFilter();
-        filters[0].addAction(NfcAdapter.ACTION_NDEF_DISCOVERED);
-        filters[0].addCategory(Intent.CATEGORY_DEFAULT);
-        try {
-            filters[0].addDataType("text/plain");
-        } catch (IntentFilter.MalformedMimeTypeException e) {
-            // TODO: THROW THE ERROR
-            return;
-        }
-
-        adapter.enableForegroundDispatch(activity, pendingIntent, filters, techList);
+        adapter.enableForegroundDispatch(activity, pendingIntent, null, techList);
     }
 
     @Override
@@ -143,12 +133,11 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
     @Override
     public void onCancel(Object args) {
         events = null;
-        currentReadingMode = null;
+        currentReaderMode = null;
     }
 
     @Override
     public void onTagDiscovered(Tag tag) {
-        Log.i(LOG_TAG, "new tag");
         Ndef ndef = Ndef.get(tag);
         if (ndef == null) {
             // tag is not in NDEF format; skip!
@@ -176,6 +165,27 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 eventError("IOError", e.getMessage(), details);
             }
         }
+    }
+
+    @Override
+    public boolean onNewIntent(Intent intent) {
+        String action = intent.getAction();
+        if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
+            Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+            handleNDEFTagFromIntent(tag);
+            return true;
+        }
+        return false;
+    }
+
+    private void handleNDEFTagFromIntent(Tag tag) {
+        Ndef ndef = Ndef.get(tag);
+        if (ndef == null) {
+            return;
+        }
+
+        NdefMessage message = ndef.getCachedNdefMessage();
+        eventSuccess(formatNDEFMessageToResult(ndef, message));
     }
 
     private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) {
@@ -221,46 +231,5 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             }
         };
         mainThread.post(runnable);
-    }
-
-    @Override
-    public boolean onNewIntent(Intent intent) {
-        String action = intent.getAction();
-        if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
-
-            String type = intent.getType();
-            if (Objects.equals(type, "text/plain")) {
-
-                Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-                handleNDEFTagFromIntent(tag);
-                return true;
-            } else {
-                Log.d(LOG_TAG, "Wrong mime type: " + type);
-            }
-        } else if (NfcAdapter.ACTION_TECH_DISCOVERED.equals(action)) {
-
-            // In case we would still use the Tech Discovered Intent
-            Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-            String[] techList = tag.getTechList();
-            String searchedTech = Ndef.class.getName();
-
-            for (String tech : techList) {
-                if (searchedTech.equals(tech)) {
-                    handleNDEFTagFromIntent(tag);
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private void handleNDEFTagFromIntent(Tag tag) {
-        Ndef ndef = Ndef.get(tag);
-        if (ndef == null) {
-            return;
-        }
-
-        NdefMessage message = ndef.getCachedNdefMessage();
-        eventSuccess(formatNDEFMessageToResult(ndef, message));
     }
 }

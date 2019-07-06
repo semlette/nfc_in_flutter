@@ -7,6 +7,15 @@ class NDEFReadingUnsupportedException implements Exception {
   String toString() => "NDEF reading is not supported on this device";
 }
 
+/// NFCMultipleReaderModesException is thrown when multiple reading streams
+/// are open, but they use different reading modes. Only 1 reading mode can
+/// be used at the same time.
+class NFCMultipleReaderModesException implements Exception {
+  @override
+  String toString() =>
+      "started reading with a different reader mode than the one already in use";
+}
+
 /// NFCUserCanceledSessionException is thrown on iOS when the users cancels the
 /// reading session (Clicks OK/done).
 class NFCUserCanceledSessionException implements Exception {
