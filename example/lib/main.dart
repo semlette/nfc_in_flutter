@@ -25,28 +25,28 @@ class _MyAppState extends State<MyApp> {
   void _readNFC(BuildContext context) {
     try {
       // ignore: cancel_subscriptions
-      StreamSubscription<NDEFMessage> subscription =
-          NFC.readNDEF(readerMode: NFCDispatchReaderMode()).listen((tag) {
+      StreamSubscription<NDEFMessage> subscription = NFC.readNDEF().listen(
+          (tag) {
         // On new tag, add it to state
         setState(() {
           _tags.insert(0, tag);
         });
       },
-              // When the stream is done, remove the subscription from state
-              onDone: () {
+          // When the stream is done, remove the subscription from state
+          onDone: () {
         setState(() {
           _stream = null;
         });
       },
-              // Errors are unlikely to happen on Android unless the NFC tags are
-              // poorly formatted or removed too soon, however on iOS at least one
-              // error is likely to happen. NFCUserCanceledSessionException will
-              // always happen unless you call readNDEF() with the `throwOnUserCancel`
-              // argument set to false.
-              // NFCSessionTimeoutException will be thrown if the session timer exceeds
-              // 60 seconds (iOS only).
-              // And then there are of course errors for unexpected stuff. Good fun!
-              onError: (e) {
+          // Errors are unlikely to happen on Android unless the NFC tags are
+          // poorly formatted or removed too soon, however on iOS at least one
+          // error is likely to happen. NFCUserCanceledSessionException will
+          // always happen unless you call readNDEF() with the `throwOnUserCancel`
+          // argument set to false.
+          // NFCSessionTimeoutException will be thrown if the session timer exceeds
+          // 60 seconds (iOS only).
+          // And then there are of course errors for unexpected stuff. Good fun!
+          onError: (e) {
         setState(() {
           _stream = null;
         });
