@@ -3,6 +3,7 @@ import 'dart:core';
 
 import 'package:flutter/services.dart';
 
+import './reader_modes.dart';
 import './exceptions.dart';
 import './messages.dart';
 
@@ -23,7 +24,14 @@ class NFC {
 
       /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
       /// should be thrown on iOS when the user clicks Cancel/Done.
-      bool throwOnUserCancel = true}) {
+      bool throwOnUserCancel = true,
+
+      /// readerMode specifies which mode the reader should use. By default it
+      /// will use the normal mode, which scans for tags normally without
+      /// support for peer-to-peer operations, such as emulated host cards.
+      ///
+      /// This is ignored on iOS as it only has one reading mode.
+      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
     if (_tagStream == null) {
       _tagStream = _eventChannel.receiveBroadcastStream().where((tag) {
         // In the future when more tag types are supported, this must be changed.
@@ -97,9 +105,18 @@ class NFC {
     });
 
     // Start reading
-    _channel.invokeMethod("startNDEFReading", {
-      "scan_once": once,
-    });
+    try {
+      _channel.invokeMethod("startNDEFReading", {
+        "scan_once": once,
+        "reader_mode": readerMode.name,
+      });
+    } on PlatformException catch (err) {
+      controller.close();
+      if (err.code == "NFCMultipleReaderModes") {
+        throw NFCMultipleReaderModesException();
+      }
+      throw err;
+    }
 
     return controller.stream;
   }

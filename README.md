@@ -141,6 +141,26 @@ If your app **requires** NFC, you can add the following to only allow it to be d
 
 If you're new to NFC you may come to expect a lot of `readNFC()` calls, but instead you see `readNDEF()` and `NDEFMessage`. NDEF is just a formatting standard the tags can be encoded in. There are other encodings than NDEF, but NDEF is the most common one. Currently NFC in Flutter only supports NDEF formatted tags.
 
+## Host Card Emulation
+
+NFC in Flutter supports reading from emulated host cards, however only on Android as Apple doesn't allow it on iOS.
+
+To read from emulated host cards, you need to do a few things.
+
+- Call `readNDEF()` with the `readerMode` argument set to an instance of `NFCDispatchReaderMode`.
+- Insert the following `<intent-filter />` in your `AndroidManifest.xml` activity:
+
+```xml
+<intent-filter>
+    <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+    <category android:name="android.intent.category.DEFAULT" />
+</intent-filter>
+```
+
+### ⚠️ Multiple reader modes
+
+If you start a `readNDEF()` stream a `NFCDispatchReaderMode` while another stream is active with the `NFCNormalReaderMode`, it will throw a `NFCMultipleReaderModesException`.
+
 ## Platform differences
 
 When you call `readNDEF()` on iOS, Core NFC (the iOS framework that allows NFC reading) opens a little window. On Android it just starts listening for NFC tag reads in the background.
