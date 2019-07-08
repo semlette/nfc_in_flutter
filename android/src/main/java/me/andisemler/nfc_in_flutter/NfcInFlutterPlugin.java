@@ -39,7 +39,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
     private final Activity activity;
     private NfcAdapter adapter;
     private EventChannel.EventSink events;
-    private HashMap<byte[], Tag> tags = new HashMap<>();
 
     private String currentReaderMode = null;
     private Tag lastTag = null;
@@ -170,7 +169,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             // tag is not in NDEF format; skip!
             return;
         }
-        tags.put(tag.getId(), tag);
         try {
             ndef.connect();
             NdefMessage message = ndef.getNdefMessage();
