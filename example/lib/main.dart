@@ -3,7 +3,45 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nfc_in_flutter/nfc_in_flutter.dart';
 
-void main() => runApp(MyApp());
+import './read_example_screen.dart';
+import './write_example_screen.dart';
+
+void main() => runApp(ExampleApp());
+
+class ExampleApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text("NFC in Flutter examples"),
+        ),
+        body: Builder(builder: (context) {
+          return ListView(
+            children: <Widget>[
+              ListTile(
+                title: const Text("Read NFC"),
+                onTap: () {
+                  Navigator.pushNamed(context, "/read_example");
+                },
+              ),
+              ListTile(
+                title: const Text("Write NFC"),
+                onTap: () {
+                  Navigator.pushNamed(context, "/write_example");
+                },
+              ),
+            ],
+          );
+        }),
+      ),
+      routes: {
+        "/read_example": (context) => ReadExampleScreen(),
+        "/write_example": (context) => WriteExampleScreen(),
+      },
+    );
+  }
+}
 
 class MyApp extends StatefulWidget {
   @override
@@ -55,9 +93,9 @@ class _MyAppState extends State<MyApp> {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-                  title: const Text("Error!"),
-                  content: Text(e.toString()),
-                ),
+              title: const Text("Error!"),
+              content: Text(e.toString()),
+            ),
           );
         }
       });
