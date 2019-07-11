@@ -97,7 +97,7 @@ Add `nfc_in_flutter` to your `pubspec.yaml`
 
 ```yaml
 dependencies:
-  nfc_in_flutter: ^1.1.0
+  nfc_in_flutter: ^1.1.1
 ```
 
 ### iOS
