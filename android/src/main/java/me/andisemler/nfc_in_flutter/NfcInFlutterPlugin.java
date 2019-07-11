@@ -11,6 +11,7 @@ import android.nfc.Tag;
 import android.nfc.tech.Ndef;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,10 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         EventChannel.StreamHandler,
         PluginRegistry.NewIntentListener,
         NfcAdapter.ReaderCallback {
+
+    private static final String NORMAL_READER_MODE = "normal";
+    private static final String DISPATCH_READER_MODE = "dispatch";
+    private static final String LOG_TAG = "NfcInFlutterPlugin";
 
     private final Activity activity;
     private NfcAdapter adapter;
@@ -83,10 +88,10 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 }
                 currentReaderMode = readerMode;
                 switch (readerMode) {
-                    case "normal":
+                    case NORMAL_READER_MODE:
                         startReading();
                         break;
-                    case "dispatch":
+                    case DISPATCH_READER_MODE:
                         startReadingWithForegroundDispatch();
                         break;
                     default:
@@ -132,6 +137,16 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     @Override
     public void onCancel(Object args) {
+        switch (currentReaderMode) {
+            case NORMAL_READER_MODE:
+                adapter.disableReaderMode(activity);
+                break;
+            case DISPATCH_READER_MODE:
+                adapter.disableForegroundDispatch(activity);
+                break;
+            default:
+                Log.e(LOG_TAG, "unknown reader mode: " + currentReaderMode);
+        }
         events = null;
         currentReaderMode = null;
     }

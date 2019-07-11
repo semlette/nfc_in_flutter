@@ -59,7 +59,7 @@ class NFC {
     StreamController<NDEFMessage> controller = StreamController();
     final stream = once ? _tagStream.take(1) : _tagStream;
     // Listen for tag reads.
-    stream.listen((message) {
+    final subscription = stream.listen((message) {
       controller.add(message);
     }, onError: (error) {
       if (error is PlatformException) {
@@ -103,6 +103,9 @@ class NFC {
       _tagStream = null;
       return controller.close();
     });
+    controller.onCancel = () {
+      subscription.cancel();
+    };
 
     // Start reading
     try {
