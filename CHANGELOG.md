@@ -1,3 +1,7 @@
+## 1.1.1
+
+* Bugfix: Android sessions are now closed properly
+
 ## 1.1.0
 
 * Added support for reading from emulated host cards
