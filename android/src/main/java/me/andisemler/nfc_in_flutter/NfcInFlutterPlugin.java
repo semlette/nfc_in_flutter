@@ -38,6 +38,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     private static final String NORMAL_READER_MODE = "normal";
     private static final String DISPATCH_READER_MODE = "dispatch";
+    private final int DEFAULT_READER_FLAGS = NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_NFC_B | NfcAdapter.FLAG_READER_NFC_F | NfcAdapter.FLAG_READER_NFC_V;
     private static final String LOG_TAG = "NfcInFlutterPlugin";
 
     private final Activity activity;
@@ -115,7 +116,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         adapter = NfcAdapter.getDefaultAdapter(activity);
         if (adapter == null) return;
         Bundle bundle = new Bundle();
-        adapter.enableReaderMode(activity, this, NfcAdapter.FLAG_READER_NFC_A, bundle);
+        adapter.enableReaderMode(activity, this, DEFAULT_READER_FLAGS, bundle);
     }
 
     private void startReadingWithForegroundDispatch() {
