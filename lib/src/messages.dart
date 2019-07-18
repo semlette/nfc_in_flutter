@@ -3,14 +3,16 @@ enum MessageType {
 }
 
 abstract class NFCMessage {
+  String get id;
   MessageType get messageType;
 }
 
 class NDEFMessage implements NFCMessage {
+  String id;
   final String type;
   final List<NDEFRecord> records;
 
-  NDEFMessage(this.type, this.records);
+  NDEFMessage(this.type, this.records, {this.id});
 
   // payload returns the contents of the first non-empty record. If all records
   // are empty it will return null.
