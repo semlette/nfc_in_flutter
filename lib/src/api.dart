@@ -3,7 +3,6 @@ import 'dart:core';
 
 import 'package:flutter/services.dart';
 
-import './reader_modes.dart';
 import './exceptions.dart';
 import './messages.dart';
 
@@ -108,11 +107,12 @@ class NFC {
     };
 
     // Start reading
+    Map arguments = {
+      "scan_once": once,
+      "reader_mode": readerMode.name,
+    }..addAll(readerMode._options);
     try {
-      _channel.invokeMethod("startNDEFReading", {
-        "scan_once": once,
-        "reader_mode": readerMode.name,
-      });
+      _channel.invokeMethod("startNDEFReading", arguments);
     } on PlatformException catch (err) {
       controller.close();
       if (err.code == "NFCMultipleReaderModes") {
@@ -129,5 +129,47 @@ class NFC {
     final supported = await _channel.invokeMethod("readNDEFSupported");
     assert(supported is bool);
     return supported as bool;
+  }
+}
+
+/// NFCReaderMode is an interface for different reading modes
+// The reading modes are implemented as classes instead of enums, so they could
+// support options in the future without breaking changes.
+abstract class NFCReaderMode {
+  String get name;
+
+  Map get _options;
+}
+
+/// NFCNormalReaderMode uses the platform's normal reading mode. This does not
+/// allow reading from emulated host cards or other peer-to-peer operations.
+class NFCNormalReaderMode implements NFCReaderMode {
+  String get name => "normal";
+
+  /// noSounds tells the platform not to play any sounds when a tag has been
+  /// read.
+  /// Android only
+  final bool noSounds;
+
+  const NFCNormalReaderMode({
+    this.noSounds = false,
+  });
+
+  @override
+  Map get _options {
+    return {
+      "no_platform_sounds": noSounds,
+    };
+  }
+}
+
+/// NFCDispatchReaderMode allows reading from emulated host cards and other
+/// peer-to-peer operations by using different platform APIs.
+class NFCDispatchReaderMode implements NFCReaderMode {
+  String get name => "dispatch";
+
+  @override
+  Map get _options {
+    return {};
   }
 }

@@ -91,7 +91,8 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 currentReaderMode = readerMode;
                 switch (readerMode) {
                     case NORMAL_READER_MODE:
-                        startReading();
+                        boolean noSounds = (boolean) args.get("no_platform_sounds");
+                        startReading(noSounds);
                         break;
                     case DISPATCH_READER_MODE:
                         startReadingWithForegroundDispatch();
@@ -113,11 +114,15 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         return adapter.isEnabled();
     }
 
-    private void startReading() {
+    private void startReading(boolean noSounds) {
         adapter = NfcAdapter.getDefaultAdapter(activity);
         if (adapter == null) return;
         Bundle bundle = new Bundle();
-        adapter.enableReaderMode(activity, this, DEFAULT_READER_FLAGS, bundle);
+        int flags = DEFAULT_READER_FLAGS;
+        if (noSounds) {
+            flags = flags | NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS;
+        }
+        adapter.enableReaderMode(activity, this, flags, bundle);
     }
 
     private void startReadingWithForegroundDispatch() {
