@@ -14,13 +14,37 @@
 @end
 
 API_AVAILABLE(ios(11))
-@interface NFCWrapperImpl : NSObject <NFCWrapper, NFCNDEFReaderSessionDelegate> {
+@interface NFCWrapperBase : NSObject <FlutterStreamHandler> {
     FlutterEventSink events;
-    FlutterMethodChannel* methodChannel;
-    dispatch_queue_t dispatchQueue;
     NFCNDEFReaderSession* session;
 }
-    -(id)init:(FlutterMethodChannel*)methodChannel dispatchQueue:(dispatch_queue_t)dispatchQueue;
+- (void)readerSession:(nonnull NFCNDEFReaderSession *)session didInvalidateWithError:(nonnull NSError *)error;
+
+- (FlutterError * _Nullable)onListenWithArguments:(id _Nullable)arguments eventSink:(nonnull FlutterEventSink)events;
+
+- (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments;
+
+- (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString* _Nonnull)identifier message:(NFCNDEFMessage* _Nonnull)message;
+@end
+
+API_AVAILABLE(ios(11))
+@interface NFCWrapperImpl11 : NFCWrapperBase <NFCWrapper, NFCNDEFReaderSessionDelegate> {
+    FlutterMethodChannel* methodChannel;
+    dispatch_queue_t dispatchQueue;
+}
+-(id _Nullable )init:(FlutterMethodChannel*_Nonnull)methodChannel dispatchQueue:(dispatch_queue_t _Nonnull )dispatchQueue;
+@end
+
+API_AVAILABLE(ios(13))
+@interface NFCWrapperImpl13 : NFCWrapperBase <NFCWrapper, NFCNDEFReaderSessionDelegate> {
+    FlutterMethodChannel* methodChannel;
+    dispatch_queue_t dispatchQueue;
+}
+-(id _Nullable )init:(FlutterMethodChannel*_Nonnull)methodChannel dispatchQueue:(dispatch_queue_t _Nonnull )dispatchQueue;
+
+- (FlutterError * _Nullable)onListenWithArguments:(id _Nullable)arguments eventSink:(nonnull FlutterEventSink)events;
+
+- (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments;
 @end
 
 @interface NFCUnsupportedWrapper : NSObject <NFCWrapper>
