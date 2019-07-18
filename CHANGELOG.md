@@ -1,3 +1,8 @@
+## 1.2.0
+
+* Added `id` property to `NDEFMessage` which contains the NFC tag's UID
+* Support for more card types on Android
+
 ## 1.1.1
 
 * Bugfix: Android sessions are now closed properly
