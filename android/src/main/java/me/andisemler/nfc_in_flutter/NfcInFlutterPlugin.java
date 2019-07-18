@@ -14,6 +14,7 @@ import android.os.Handler;
 import android.util.Log;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -215,6 +216,10 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             recordMap.put("tnf", String.valueOf(record.getTnf()));
             records.add(recordMap);
         }
+        byte[] idByteArray = ndef.getTag().getId();
+        // Fancy string formatting snippet is from
+        // https://gist.github.com/luixal/5768921#gistcomment-1788815
+        result.put("id", String.format("%0" + (idByteArray.length * 2) + "X", new BigInteger(1, idByteArray)));
         result.put("message_type", "ndef");
         result.put("type", ndef.getType());
         result.put("records", records);

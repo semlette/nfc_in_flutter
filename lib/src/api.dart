@@ -50,7 +50,7 @@ class NFC {
           ));
         }
 
-        return NDEFMessage(tag["type"], records);
+        return NDEFMessage(tag["type"], records, id: tag["id"] ?? "");
       });
     }
     // Create a StreamController to wrap the tag stream. Any errors will be
