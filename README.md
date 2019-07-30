@@ -44,7 +44,7 @@ class _NFCReaderState extends State {
     void initState() {
         super.initState();
         // Check if the device supports NFC reading
-        NFC.supportsNDEFReading()
+        NFC.isNDEFSupported
             .then((bool isSupported) {
                 setState(() {
                     _supportsNFC = isSupported;
