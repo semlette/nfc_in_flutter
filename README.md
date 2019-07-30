@@ -143,7 +143,7 @@ If you're new to NFC you may come to expect a lot of `readNFC()` calls, but inst
 
 ## Host Card Emulation
 
-NFC in Flutter supports reading from emulated host cards, however only on Android as Apple doesn't allow it on iOS.
+NFC in Flutter supports reading from emulated host cards*.
 
 To read from emulated host cards, you need to do a few things.
 
@@ -157,9 +157,11 @@ To read from emulated host cards, you need to do a few things.
 </intent-filter>
 ```
 
+* Not properly tested on iOS
+
 ### ⚠️ Multiple reader modes
 
-If you start a `readNDEF()` stream a `NFCDispatchReaderMode` while another stream is active with the `NFCNormalReaderMode`, it will throw a `NFCMultipleReaderModesException`.
+If you start a `readNDEF()` stream with the reader mode set to an instance of `NFCDispatchReaderMode`, while another stream is active with the `NFCNormalReaderMode`, it will throw a `NFCMultipleReaderModesException`.
 
 ## Platform differences
 
