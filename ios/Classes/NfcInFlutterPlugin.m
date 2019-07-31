@@ -25,10 +25,8 @@
     
 - (id)init:(dispatch_queue_t)dispatchQueue channel:(FlutterMethodChannel*)channel {
     self->dispatchQueue = dispatchQueue;
-    if (@available(iOS 13.0, *)) {
-        wrapper = [[NFCWrapperImpl13 alloc] init:channel dispatchQueue:dispatchQueue];
-    } else if (@available(iOS 11.0, *)) {
-        wrapper = [[NFCWrapperImpl11 alloc] init:channel dispatchQueue:dispatchQueue];
+    if (@available(iOS 11.0, *)) {
+        wrapper = [[NFCWrapperImpl alloc] init:channel dispatchQueue:dispatchQueue];
     } else {
         wrapper = [[NFCUnsupportedWrapper alloc] init];
     }
@@ -171,7 +169,7 @@
 
 @end
 
-@implementation NFCWrapperImpl11
+@implementation NFCWrapperImpl
 
 - (id)init:(FlutterMethodChannel*)methodChannel dispatchQueue:(dispatch_queue_t)dispatchQueue {
     self->methodChannel = methodChannel;
@@ -212,34 +210,8 @@
     }
 }
 
-@end
-
-
-@implementation NFCWrapperImpl13
-
-- (id)init:(FlutterMethodChannel*)methodChannel dispatchQueue:(dispatch_queue_t)dispatchQueue {
-    self->methodChannel = methodChannel;
-    self->dispatchQueue = dispatchQueue;
-    return self;
-}
-
-- (void)startReading:(BOOL)once {
-    if (session == nil) {
-        session = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:dispatchQueue invalidateAfterFirstRead: once];
-    }
-    [self->session beginSession];
-}
-
-- (BOOL)isEnabled {
-    return NFCNDEFReaderSession.readingAvailable;
-}
-
-- (void)readerSession:(nonnull NFCNDEFReaderSession *)session didDetectNDEFs:(nonnull NSArray<NFCNDEFMessage *> *)messages {
-    NSLog(@"didDetectNDEFs");
-}
-
 - (void)readerSession:(NFCNDEFReaderSession *)session
-        didDetectTags:(NSArray<__kindof id<NFCNDEFTag>> *)tags {
+        didDetectTags:(NSArray<__kindof id<NFCNDEFTag>> *)tags API_AVAILABLE(ios(13.0)) {
     // Iterate through the tags and send them to Flutter with the following structure:
     // { Map
     //   "id": "", // empty
@@ -278,30 +250,11 @@
     }
 }
 
-- (void)readerSessionDidBecomeActive:(NFCNDEFReaderSession *)session {
+- (void)readerSessionDidBecomeActive:(NFCNDEFReaderSession *)session API_AVAILABLE(ios(13.0)) {
     NSLog(@"didBecomeActive");
 }
 
-- (FlutterError * _Nullable)onListenWithArguments:(id _Nullable)arguments eventSink:(nonnull FlutterEventSink)events {
-    self->events = events;
-    return nil;
-}
-
-// onCancelWithArguments is called when the event stream is canceled,
-// which most likely happens because of manuallyStopStream().
-// However if it was not triggered by manuallyStopStream(), it should invalidate
-// the reader session if activate
-- (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments {
-    if (session != nil) {
-        [session invalidateSession];
-        session = nil;
-    }
-    events = nil;
-    return nil;
-}
-
 @end
-
 
 @implementation NFCUnsupportedWrapper
 
