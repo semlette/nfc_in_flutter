@@ -224,22 +224,14 @@
     //     }
     //   ]
     // }
-    NSLog(@"didDetectTags");
+    
+    // Set the last tags scanned
+    lastTag = tags[[tags count] - 1];
+    
     for (id<NFCNDEFTag> tag in tags) {
-        if ([tag conformsToProtocol:@protocol(NFCMiFareTag)]) {
-            NSLog(@"tag is mifare");
-        } else if ([tag conformsToProtocol:@protocol(NFCFeliCaTag)]) {
-            NSLog(@"tag is felica");
-        } else if ([tag conformsToProtocol:@protocol(NFCISO15693Tag)]) {
-            NSLog(@"tag is ISO15693");
-        } else if ([tag conformsToProtocol:@protocol(NFCISO7816Tag)]) {
-            NSLog(@"tag is ISO7816");
-        } else {
-            NSLog(@"unknown tag type");
-        }
-        
         // Read the message from the tag
         [tag readNDEFWithCompletionHandler:^(NFCNDEFMessage * _Nullable message, NSError * _Nullable error) {
+            // TODO: Check for error
             NSDictionary* result = [self formatMessageWithIdentifier:@"" message:message];
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (self->events != nil) {
@@ -252,6 +244,13 @@
 
 - (void)readerSessionDidBecomeActive:(NFCNDEFReaderSession *)session API_AVAILABLE(ios(13.0)) {
     NSLog(@"didBecomeActive");
+}
+
+- (void)writeToTag:(NSDictionary*)data {
+    // recordList is a list of records sent by Flutter
+    NSArray* recordList = [data valueForKey:@"records"];
+    // records is a mutable array of records for the final NDEF message
+    NSMutableArray<NSArray<NFCNDEFPayload*>*>* records = [[NSMutableArray alloc] initWithCapacity:[recordList count]];
 }
 
 @end
@@ -275,6 +274,10 @@
     
 - (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments {
     return nil;
+}
+
+- (void)writeToTag:(NSDictionary*)data {
+    return;
 }
     
 @end

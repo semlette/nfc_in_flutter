@@ -2,9 +2,10 @@
 #import <CoreNFC/CoreNFC.h>
 
 @protocol NFCWrapper <FlutterStreamHandler>
-    -(void)startReading:(BOOL)once;
-    -(BOOL)isEnabled;
-    @end
+- (void)startReading:(BOOL)once;
+- (BOOL)isEnabled;
+- (void)writeToTag:(NSDictionary*)data;
+@end
 
 
 @interface NfcInFlutterPlugin : NSObject<FlutterPlugin> {
@@ -31,6 +32,7 @@ API_AVAILABLE(ios(11))
 @interface NFCWrapperImpl : NFCWrapperBase <NFCWrapper, NFCNDEFReaderSessionDelegate> {
     FlutterMethodChannel* methodChannel;
     dispatch_queue_t dispatchQueue;
+    id<NFCTag> lastTag;
 }
 -(id _Nullable )init:(FlutterMethodChannel*_Nonnull)methodChannel dispatchQueue:(dispatch_queue_t _Nonnull )dispatchQueue;
 @end
