@@ -14,7 +14,7 @@ jobs:
     - name: Run Flutter doctor
       run: ./flutter/bin/flutter doctor
     - name: Build example/
-      run: cd example && ../flutter/bin/flutter build appbundle --release
+      run: cd example && ../flutter/bin/flutter build appbundle
 
   build-ios:
     runs-on: macOS-latest
@@ -27,4 +27,5 @@ jobs:
     - name: Run Flutter doctor
       run: ./flutter/bin/flutter doctor
     - name: Build example/
-      run: cd example && ../flutter/bin/flutter build ios --release
+      run: cd example && ../flutter/bin/flutter build ios --no-codesign
+      timeout-minutes: 10
