@@ -16,16 +16,17 @@ jobs:
     - name: Build example/
       run: cd example && ../flutter/bin/flutter build appbundle
 
-  build-ios:
-    runs-on: macOS-latest
-    steps:
-    - uses: actions/checkout@master
-    - name: Download Flutter
-      run: curl -o flutter_macos_v1.7.8+hotfix.4-stable.zip https://storage.googleapis.com/flutter_infra/releases/stable/macos/flutter_macos_v1.7.8+hotfix.4-stable.zip
-    - name: Unpack Flutter
-      run: unzip flutter_macos_v1.7.8+hotfix.4-stable.zip
-    - name: Run Flutter doctor
-      run: ./flutter/bin/flutter doctor
-    - name: Build example/
-      run: cd example && ../flutter/bin/flutter build ios --no-codesign
-      timeout-minutes: 10
+# This is a cool idea, however it always timeouts...
+#  build-ios:
+#    runs-on: macOS-latest
+#    steps:
+#    - uses: actions/checkout@master
+#    - name: Download Flutter
+#      run: curl -o flutter_macos_v1.7.8+hotfix.4-stable.zip https://storage.googleapis.com/flutter_infra/releases/stable/macos/flutter_macos_v1.7.8+hotfix.4-stable.zip
+#    - name: Unpack Flutter
+#      run: unzip flutter_macos_v1.7.8+hotfix.4-stable.zip
+#    - name: Run Flutter doctor
+#      run: ./flutter/bin/flutter doctor
+#    - name: Build example/
+#      run: cd example && ../flutter/bin/flutter build ios --no-codesign
+#      timeout-minutes: 10
