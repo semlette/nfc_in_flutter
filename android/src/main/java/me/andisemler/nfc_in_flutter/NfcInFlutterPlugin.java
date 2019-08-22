@@ -15,8 +15,11 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.text.Format;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -207,15 +210,38 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         }
 
         NdefMessage message = ndef.getCachedNdefMessage();
-        eventSuccess(formatNDEFMessageToResult(ndef, message));
+        try {
+            Map result = formatNDEFMessageToResult(ndef, message);
+            eventSuccess(result);
+        } catch (FormatException e) {
+            eventError("NDEFBadFormatError", e.getMessage(), null);
+        }
     }
 
-    private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) {
+    private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) throws FormatException {
         final Map<String, Object> result = new HashMap<>();
         List<Map<String, String>> records = new ArrayList<>();
         for (NdefRecord record : message.getRecords()) {
             Map<String, String> recordMap = new HashMap<>();
-            recordMap.put("payload", new String(record.getPayload(), StandardCharsets.UTF_8));
+            byte[] recordPayload = record.getPayload();
+            int spliceLength = 0;
+            Charset charset = StandardCharsets.UTF_8;
+            if (record.getTnf() == NdefRecord.TNF_WELL_KNOWN) {
+                byte[] type = record.getType();
+                if (Arrays.equals(type, NdefRecord.RTD_TEXT)) {
+                    charset = ((recordPayload[0] & 128) == 0) ? StandardCharsets.UTF_8 : StandardCharsets.UTF_16;
+                    spliceLength = (recordPayload[0] & 51) + 1; // Language code length
+                } else if (Arrays.equals(type, NdefRecord.RTD_URI)) {
+                    int prefixIndex = (recordPayload[0] & 0xff);
+                    if (prefixIndex >= 44) {
+                        throw new FormatException("Record payload has an invalid URI prefix");
+                    }
+                    spliceLength = 1;
+                }
+            }
+
+            recordMap.put("payload", new String(recordPayload, charset));
+            recordMap.put("data", new String(recordPayload, spliceLength, recordPayload.length - spliceLength, charset));
             recordMap.put("id", new String(record.getId(), StandardCharsets.UTF_8));
             recordMap.put("type", new String(record.getType(), StandardCharsets.UTF_8));
             recordMap.put("tnf", String.valueOf(record.getTnf()));

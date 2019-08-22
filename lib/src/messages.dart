@@ -33,9 +33,10 @@ class NDEFRecord {
   final String id;
   final String payload;
   final String type;
+  final String data;
 
   /// tnf is only available on Android
   final int tnf;
 
-  NDEFRecord(this.id, this.payload, this.type, this.tnf);
+  NDEFRecord(this.id, this.payload, this.type, this.tnf, {this.data});
 }

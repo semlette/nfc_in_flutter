@@ -55,9 +55,9 @@ class _MyAppState extends State<MyApp> {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-                  title: const Text("Error!"),
-                  content: Text(e.toString()),
-                ),
+              title: const Text("Error!"),
+              content: Text(e.toString()),
+            ),
           );
         }
       });
@@ -141,6 +141,11 @@ class _MyAppState extends State<MyApp> {
         body: ListView.builder(
           itemCount: _tags.length,
           itemBuilder: (context, index) {
+            const TextStyle payloadTextStyle = const TextStyle(
+              fontSize: 15,
+              color: const Color(0xFF454545),
+            );
+
             return Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
               child: Column(
@@ -165,10 +170,11 @@ class _MyAppState extends State<MyApp> {
                             ),
                             Text(
                               _tags[index].records[i].payload,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                color: const Color(0xFF454545),
-                              ),
+                              style: payloadTextStyle,
+                            ),
+                            Text(
+                              _tags[index].records[i].data,
+                              style: payloadTextStyle,
                             ),
                           ],
                         ));

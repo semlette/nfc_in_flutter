@@ -46,6 +46,7 @@ class NFC {
             record["payload"],
             record["type"],
             record["tnf"] != null ? int.parse(record["tnf"]) : 0,
+            data: record["data"],
           ));
         }
 
