@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -50,6 +51,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
     private EventChannel.EventSink events;
 
     private String currentReaderMode = null;
+    private Tag lastTag = null;
 
     /**
      * Plugin registration.
@@ -105,6 +107,29 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                         return;
                 }
                 result.success(null);
+                break;
+            case "writeNDEF":
+                HashMap writeArgs = call.arguments();
+                if (writeArgs == null) {
+                    result.error("NFCMissingArguments", "missing arguments", null);
+                    break;
+                }
+                try {
+                    Map messageMap = (Map) writeArgs.get("message");
+                    if (messageMap == null) {
+                        result.error("NFCMissingNDEFMessage", "a ndef message was not given", null);
+                        break;
+                    }
+                    NdefMessage message = formatMapToNDEFMessage(messageMap);
+                    writeNDEF(message);
+                    result.success(null);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                } catch (IOException e) {
+                    result.error("IOError", e.getMessage(), null);
+                } catch (FormatException e) {
+                    result.error("NDEFBadFormatError", e.getMessage(), null);
+                }
                 break;
             default:
                 result.notImplemented();
@@ -163,6 +188,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     @Override
     public void onTagDiscovered(Tag tag) {
+        lastTag = tag;
         Ndef ndef = Ndef.get(tag);
         if (ndef == null) {
             // tag is not in NDEF format; skip!
@@ -197,6 +223,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         String action = intent.getAction();
         if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
             Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+            lastTag = tag;
             handleNDEFTagFromIntent(tag);
             return true;
         }
@@ -247,14 +274,55 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             recordMap.put("tnf", String.valueOf(record.getTnf()));
             records.add(recordMap);
         }
+<<<<<<< HEAD
         byte[] idByteArray = ndef.getTag().getId();
         // Fancy string formatting snippet is from
         // https://gist.github.com/luixal/5768921#gistcomment-1788815
         result.put("id", String.format("%0" + (idByteArray.length * 2) + "X", new BigInteger(1, idByteArray)));
+=======
+        result.put("id", new String(ndef.getTag().getId(), StandardCharsets.UTF_8));
+>>>>>>> writing
         result.put("message_type", "ndef");
         result.put("type", ndef.getType());
         result.put("records", records);
+        result.put("writable", true);
         return result;
+    }
+
+    private NdefMessage formatMapToNDEFMessage(Map map) throws IllegalArgumentException {
+        Object mapRecordsObj = map.get("records");
+        if (mapRecordsObj == null) {
+            throw new IllegalArgumentException("missing records");
+        } else if (!(mapRecordsObj instanceof List)) {
+            throw new IllegalArgumentException("map key 'records' is not a list");
+        }
+        List mapRecords = (List) mapRecordsObj;
+        int amountOfRecords = mapRecords.size();
+        NdefRecord[] records = new NdefRecord[amountOfRecords];
+        for (int i = 0;i < amountOfRecords; i++) {
+            Object mapRecordObj = mapRecords.get(i);
+            if (!(mapRecordObj instanceof Map)) {
+                throw new IllegalArgumentException("record is not a map");
+            }
+            Map mapRecord = (Map) mapRecordObj;
+            records[i] = NdefRecord.createMime(
+                (String) mapRecord.get("type"),
+                ((String) mapRecord.get("payload")).getBytes()
+            );
+        }
+        return new NdefMessage(records);
+    }
+
+    private void writeNDEF(NdefMessage message) throws NfcInFlutterException, IOException, FormatException {
+        if (lastTag == null) {
+            throw new NfcInFlutterException("NFCTagUnavailable", "tag is no longer available", null);
+        }
+        Ndef ndef = Ndef.get(lastTag);
+        if (ndef == null) {
+            throw new NfcInFlutterException("NDEFUnsupported", "tag doesn't support NDEF", null);
+        }
+        ndef.connect();
+        ndef.writeNdefMessage(message);
     }
 
     private void eventSuccess(final Object result) {

@@ -6,7 +6,6 @@
 }
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
     dispatch_queue_t dispatchQueue = dispatch_queue_create("me.andisemler.nfc_in_flutter.dispatch_queue", NULL);
-    NfcInFlutterPlugin* instance = [[NfcInFlutterPlugin alloc] init:dispatchQueue];
     
     FlutterMethodChannel* channel = [FlutterMethodChannel
                                      methodChannelWithName:@"nfc_in_flutter"
@@ -15,18 +14,22 @@
     FlutterEventChannel* tagChannel = [FlutterEventChannel
                                        eventChannelWithName:@"nfc_in_flutter/tags"
                                        binaryMessenger:[registrar messenger]];
-    if (@available(iOS 11.0, *)) {
-        instance->wrapper = [[NFCWrapperImpl alloc] init:channel dispatchQueue:dispatchQueue];
-    } else {
-        instance->wrapper = [[NFCUnsupportedWrapper alloc] init];
-    }
+    
+    NfcInFlutterPlugin* instance = [[NfcInFlutterPlugin alloc]
+                                    init:dispatchQueue
+                                    channel:channel];
   
     [registrar addMethodCallDelegate:instance channel:channel];
     [tagChannel setStreamHandler:instance->wrapper];
 }
     
-- (id)init:(dispatch_queue_t)dispatchQueue {
+- (id)init:(dispatch_queue_t)dispatchQueue channel:(FlutterMethodChannel*)channel {
     self->dispatchQueue = dispatchQueue;
+    if (@available(iOS 11.0, *)) {
+        wrapper = [[NFCWrapperImpl alloc] init:channel dispatchQueue:dispatchQueue];
+    } else {
+        wrapper = [[NFCUnsupportedWrapper alloc] init];
+    }
     return self;
 }
 
@@ -50,6 +53,121 @@
 
 @end
 
+
+@implementation NFCWrapperBase
+
+- (void)readerSession:(nonnull NFCNDEFReaderSession *)session didInvalidateWithError:(nonnull NSError *)error API_AVAILABLE(ios(11.0)) {
+    // When a session has been invalidated it needs to be created again to work.
+    // Since this function is called when it invalidates, the session can safely be removed.
+    // A new session doesn't have to be created immediately as that will happen the next time
+    // startReading() is called.
+    session = nil;
+    
+    // If the event stream is closed we can't send the error
+    if (events == nil) {
+        return;
+    }
+    switch ([error code]) {
+        case NFCReaderSessionInvalidationErrorFirstNDEFTagRead:
+            // When this error is returned it doesn't need to be sent to the client
+            // as it cancels the stream after 1 read anyways
+            events(FlutterEndOfEventStream);
+            return;
+        case NFCReaderErrorUnsupportedFeature:
+            events([FlutterError
+                    errorWithCode:@"NDEFUnsupportedFeatureError"
+                    message:error.localizedDescription
+                    details:nil]);
+            break;
+        case NFCReaderSessionInvalidationErrorUserCanceled:
+            events([FlutterError
+                    errorWithCode:@"UserCanceledSessionError"
+                    message:error.localizedDescription
+                    details:nil]);
+            break;
+        case NFCReaderSessionInvalidationErrorSessionTimeout:
+            events([FlutterError
+                    errorWithCode:@"SessionTimeoutError"
+                    message:error.localizedDescription
+                    details:nil]);
+            break;
+        case NFCReaderSessionInvalidationErrorSessionTerminatedUnexpectedly:
+            events([FlutterError
+                    errorWithCode:@"SessionTerminatedUnexpectedlyError"
+                    message:error.localizedDescription
+                    details:nil]);
+            break;
+        case NFCReaderSessionInvalidationErrorSystemIsBusy:
+            events([FlutterError
+                    errorWithCode:@"SystemIsBusyError"
+                    message:error.localizedDescription
+                    details:nil]);
+            break;
+        default:
+            events([FlutterError
+                    errorWithCode:@"SessionError"
+                    message:error.localizedDescription
+                    details:nil]);
+    }
+    // Make sure to close the stream, otherwise bad things will happen.
+    // (onCancelWithArguments will never be called so the stream will
+    //  not be reset and will be stuck in a 'User Canceled' error loop)
+    events(FlutterEndOfEventStream);
+    return;
+}
+
+- (FlutterError * _Nullable)onListenWithArguments:(id _Nullable)arguments eventSink:(nonnull FlutterEventSink)events {
+    self->events = events;
+    return nil;
+}
+
+// onCancelWithArguments is called when the event stream is canceled,
+// which most likely happens because of manuallyStopStream().
+// However if it was not triggered by manuallyStopStream(), it should invalidate
+// the reader session if activate
+- (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments {
+    if (session != nil) {
+        [session invalidateSession];
+        session = nil;
+    }
+    events = nil;
+    return nil;
+}
+
+// formatMessageWithIdentifier turns a NFCNDEFMessage into a NSDictionary that
+// is ready to be sent to Flutter
+- (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString* _Nonnull)identifier message:(NFCNDEFMessage* _Nonnull)message {
+    NSMutableArray<NSDictionary*>* records = [[NSMutableArray alloc] initWithCapacity:[[message records] count]];
+    for (NFCNDEFPayload* payload in [message records]) {
+        NSString* type;
+        type = [[NSString alloc]
+                initWithData:[payload type]
+                encoding:NSUTF8StringEncoding];
+        NSString* payloadData;
+        payloadData = [[NSString alloc]
+                       initWithData:[payload payload]
+                       encoding:NSUTF8StringEncoding];
+        NSString* identifier;
+        identifier = [[NSString alloc]
+                      initWithData:[payload identifier]
+                      encoding:NSUTF8StringEncoding];
+        
+        NSDictionary* record = @{
+            @"type": type,
+            @"payload": payloadData,
+            @"id": identifier,
+        };
+        [records addObject:record];
+    }
+    NSDictionary* result = @{
+        @"id": identifier,
+        @"message_type": @"ndef",
+        @"records": records,
+    };
+    return result;
+}
+
+@end
 
 @implementation NFCWrapperImpl
 
@@ -83,33 +201,7 @@
     //   ]
     // }
     for (NFCNDEFMessage* message in messages) {
-        NSMutableArray<NSDictionary*>* records = [[NSMutableArray alloc] initWithCapacity:[[message records] count]];
-        for (NFCNDEFPayload* payload in [message records]) {
-            NSString* type;
-            type = [[NSString alloc]
-                    initWithData:[payload type]
-                    encoding:NSUTF8StringEncoding];
-            NSString* payloadData;
-            payloadData = [[NSString alloc]
-                           initWithData:[payload payload]
-                           encoding:NSUTF8StringEncoding];
-            NSString* identifier;
-            identifier = [[NSString alloc]
-                          initWithData:[payload identifier]
-                          encoding:NSUTF8StringEncoding];
-            
-            NSDictionary* record = @{
-                                     @"type": type,
-                                     @"payload": payloadData,
-                                     @"id": identifier,
-                                     };
-            [records addObject:record];
-        }
-        NSDictionary* result = @{
-                                 @"message_type": @"ndef",
-                                 @"records": records,
-                                 };
-        
+        NSDictionary* result = [self formatMessageWithIdentifier:@"" message:message];
         dispatch_async(dispatch_get_main_queue(), ^{
             if (self->events != nil) {
                self->events(result);
@@ -117,86 +209,51 @@
         });
     }
 }
+
+- (void)readerSession:(NFCNDEFReaderSession *)session
+        didDetectTags:(NSArray<__kindof id<NFCNDEFTag>> *)tags API_AVAILABLE(ios(13.0)) {
+    // Iterate through the tags and send them to Flutter with the following structure:
+    // { Map
+    //   "id": "", // empty
+    //   "message_type": "ndef",
+    //   "records": [ List
+    //     { Map
+    //       "type": "The record's content type",
+    //       "payload": "The record's payload",
+    //       "id": "The record's identifier",
+    //     }
+    //   ]
+    // }
     
-- (void)readerSession:(nonnull NFCNDEFReaderSession *)session didInvalidateWithError:(nonnull NSError *)error API_AVAILABLE(ios(11.0)) {
-    // When a session has been invalidated it needs to be created again to work.
-    // Since this function is called when it invalidates, the session can safely be removed.
-    // A new session doesn't have to be created immediately as that will happen the next time
-    // startReading() is called.
-    session = nil;
+    // Set the last tags scanned
+    lastTag = tags[[tags count] - 1];
     
-    // If the event stream is closed we can't send the error
-    if (events == nil) {
-        return;
+    for (id<NFCNDEFTag> tag in tags) {
+        // Read the message from the tag
+        [tag readNDEFWithCompletionHandler:^(NFCNDEFMessage * _Nullable message, NSError * _Nullable error) {
+            // TODO: Check for error
+            NSDictionary* result = [self formatMessageWithIdentifier:@"" message:message];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (self->events != nil) {
+                    self->events(result);
+                }
+            });
+        }];
     }
-    switch ([error code]) {
-        case NFCReaderSessionInvalidationErrorFirstNDEFTagRead:
-        // When this error is returned it doesn't need to be sent to the client
-        // as it cancels the stream after 1 read anyways
-        events(FlutterEndOfEventStream);
-        return;
-        case NFCReaderErrorUnsupportedFeature:
-        events([FlutterError
-                errorWithCode:@"NDEFUnsupportedFeatureError"
-                message:error.localizedDescription
-                details:nil]);
-        break;
-        case NFCReaderSessionInvalidationErrorUserCanceled:
-        events([FlutterError
-                errorWithCode:@"UserCanceledSessionError"
-                message:error.localizedDescription
-                details:nil]);
-        break;
-        case NFCReaderSessionInvalidationErrorSessionTimeout:
-        events([FlutterError
-                errorWithCode:@"SessionTimeoutError"
-                message:error.localizedDescription
-                details:nil]);
-        break;
-        case NFCReaderSessionInvalidationErrorSessionTerminatedUnexpectedly:
-        events([FlutterError
-                errorWithCode:@"SessionTerminatedUnexpectedlyError"
-                message:error.localizedDescription
-                details:nil]);
-        break;
-        case NFCReaderSessionInvalidationErrorSystemIsBusy:
-        events([FlutterError
-                errorWithCode:@"SystemIsBusyError"
-                message:error.localizedDescription
-                details:nil]);
-        break;
-        default:
-        events([FlutterError
-                errorWithCode:@"SessionError"
-                message:error.localizedDescription
-                details:nil]);
-    }
-    // Make sure to close the stream, otherwise bad things will happen.
-    // (onCancelWithArguments will never be called so the stream will
-    //  not be reset and will be stuck in a 'User Canceled' error loop)
-    events(FlutterEndOfEventStream);
-}
-    
-- (FlutterError * _Nullable)onListenWithArguments:(id _Nullable)arguments eventSink:(nonnull FlutterEventSink)events {
-    self->events = events;
-    return nil;
 }
 
-// onCancelWithArguments is called when the event stream is canceled,
-// which most likely happens because of manuallyStopStream().
-// However if it was not triggered by manuallyStopStream(), it should invalidate
-// the reader session if activate
-- (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments {
-    if (session != nil) {
-        [session invalidateSession];
-        session = nil;
-    }
-    events = nil;
-    return nil;
+- (void)readerSessionDidBecomeActive:(NFCNDEFReaderSession *)session API_AVAILABLE(ios(13.0)) {
+    NSLog(@"didBecomeActive");
 }
-    
+
+- (void)writeToTag:(NSDictionary*)data {
+    // recordList is a list of records sent by Flutter
+    NSArray* recordList = [data valueForKey:@"records"];
+    // records is a mutable array of records for the final NDEF message
+    NSMutableArray<NSArray<NFCNDEFPayload*>*>* records = [[NSMutableArray alloc] initWithCapacity:[recordList count]];
+}
+
 @end
-
 
 @implementation NFCUnsupportedWrapper
 
@@ -217,6 +274,10 @@
     
 - (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments {
     return nil;
+}
+
+- (void)writeToTag:(NSDictionary*)data {
+    return;
 }
     
 @end

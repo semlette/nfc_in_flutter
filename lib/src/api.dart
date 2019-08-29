@@ -4,7 +4,6 @@ import 'dart:core';
 import 'package:flutter/services.dart';
 
 import './exceptions.dart';
-import './messages.dart';
 
 class NFC {
   static MethodChannel _channel = MethodChannel("nfc_in_flutter");
@@ -41,16 +40,16 @@ class NFC {
 
         List<NDEFRecord> records = [];
         for (var record in tag["records"]) {
-          records.add(NDEFRecord(
+          records.add(NDEFRecord._internal(
             record["id"],
             record["payload"],
             record["type"],
             record["tnf"] != null ? int.parse(record["tnf"]) : 0,
-            data: record["data"],
+            record["data"],
           ));
         }
 
-        return NDEFMessage(tag["type"], records, id: tag["id"] ?? "");
+        return NDEFMessage._internal(tag["id"], tag["type"], records);
       });
     }
     // Create a StreamController to wrap the tag stream. Any errors will be
@@ -172,5 +171,145 @@ class NFCDispatchReaderMode implements NFCReaderMode {
   @override
   Map get _options {
     return {};
+  }
+}
+
+enum MessageType {
+  NDEF,
+}
+
+abstract class NFCMessage {
+  MessageType get messageType;
+  String get id;
+
+  NFCTag get tag;
+}
+
+abstract class NFCTag {
+  String get id;
+  bool get writable;
+  Future connect();
+  Future close();
+}
+
+class NDEFMessage implements NFCMessage {
+  String id;
+  String type;
+  final List<NDEFRecord> records;
+
+  NDEFMessage.ofRecords(this.records);
+
+  NDEFMessage(this.type, this.records);
+
+  NDEFMessage._internal(this.id, this.type, this.records);
+
+  // payload returns the contents of the first non-empty record. If all records
+  // are empty it will return null.
+  String get payload {
+    for (var record in records) {
+      if (record.payload != "") {
+        return record.payload;
+      }
+    }
+    return null;
+  }
+
+  @override
+  MessageType get messageType => MessageType.NDEF;
+
+  @override
+  NDEFTag get tag {
+    return NDEFTag._internal(id, true);
+  }
+
+  Map<String, dynamic> _toMap() {
+    return {
+      "id": id,
+      "type": type,
+      "records": records.map((record) => record._toMap()).toList(),
+    };
+  }
+}
+
+class NDEFRecord {
+  final String id;
+  final String payload;
+  final String type;
+  final String data;
+
+  // TODO
+  /// tnf is only available on Android
+  int tnf;
+
+  NDEFRecord.plain(String data)
+      : this.id = null,
+        this.type = "text/plain",
+        this.payload = data,
+        this.data = data;
+
+  NDEFRecord.type(this.type, String payload)
+      : this.id = null,
+        this.data = payload,
+        this.payload = payload;
+
+  NDEFRecord.text(String message, {languageCode = "en "})
+      : this.id = null,
+        this.data = message,
+        this.payload = languageCode + message,
+        this.type = "T";
+
+  NDEFRecord._internal(this.id, this.payload, this.type, this.tnf, this.data);
+
+  Map<String, dynamic> _toMap() {
+    return {
+      "id": id,
+      "payload": payload,
+      "type": type,
+    };
+  }
+}
+
+class NDEFTag implements NFCTag {
+  String id;
+  bool writable;
+
+  NDEFTag._internal(this.id, this.writable);
+
+  NDEFTag._fromMap(Map<String, dynamic> map) {
+    assert(map["id"] is String);
+    id = map["id"];
+    assert(map["writable"] is bool);
+    writable = map["writable"];
+  }
+
+  @override
+  Future connect() async {}
+
+  @override
+  Future close() async {}
+
+  Future write(NDEFMessage message) async {
+    if (!writable) {
+      throw NFCTagUnwritableException();
+    }
+    try {
+      NFC._channel.invokeMethod("writeNDEF", {
+        "id": id,
+        "message": message._toMap(),
+      });
+    } on PlatformException catch (e) {
+      switch (e.code) {
+        case "IOError":
+          throw NFCIOException(e.message);
+        case "NFCTagUnavailable":
+          throw NFCTagUnavailableException();
+        case "NDEFUnsupported":
+          throw NDEFUnsupportedException();
+        case "NDEFBadFormatError":
+          throw NDEFBadFormatException(e.message);
+        default:
+          throw e;
+      }
+    }
   }
 }

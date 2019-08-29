@@ -74,3 +74,31 @@ class NDEFBadFormatException implements Exception {
   @override
   String toString() => message;
 }
+
+/// NFCTagNotWritableException is thrown when an unwritable tag is 'written to'.
+/// This could be because the reader does not support writing to NFC tags or
+/// simply the tag is read-only.
+class NFCTagUnwritableException implements Exception {
+  final message = "tag is not writable";
+
+  @override
+  String toString() => message;
+}
+
+/// NFCTagUnavailableException is thrown when the NFC tag being written to
+/// is no longer in reach.
+class NFCTagUnavailableException implements Exception {
+  final message = "tag is no longer available";
+
+  @override
+  String toString() => message;
+}
+
+/// NDEFUnsupportedException is thrown when a tag does not support NDEF,
+/// but is being written an NDEFMessage.
+class NDEFUnsupportedException implements Exception {
+  final message = "tag does not support NDEF formatting";
+
+  @override
+  String toString() => message;
+}
