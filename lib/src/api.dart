@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:core';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
@@ -130,6 +131,13 @@ class NFC {
     assert(supported is bool);
     return supported as bool;
   }
+
+  static Future<void> readNFCIsoDep() async => await _channel.invokeMethod("startISODepReading");
+  static Future<void> setTimeOutIsoDep( final int timeout ) async => await _channel.invokeMethod("setTimeOutIsoDep", { "timeout": timeout });
+  static Future<void> connectISODep() async => await _channel.invokeMethod("connectISODep");
+  static Future<void> closeISODep() async => await _channel.invokeMethod("closeISODep");
+  static Future<Uint8List> transceiveIsoDep( Uint8List data ) async => await _channel.invokeMethod("transceiveIsoDep", { "data": data } );
+  
 }
 
 /// NFCReaderMode is an interface for different reading modes
