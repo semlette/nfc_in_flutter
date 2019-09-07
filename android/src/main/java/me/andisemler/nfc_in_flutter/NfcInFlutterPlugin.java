@@ -8,6 +8,7 @@ import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.nfc.tech.IsoDep;
 import android.nfc.tech.Ndef;
 import android.os.Bundle;
 import android.os.Handler;
@@ -43,6 +44,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
     private static final String LOG_TAG = "NfcInFlutterPlugin";
 
     private final Activity activity;
+    private IsoDep iso_dep;
     private NfcAdapter adapter;
     private EventChannel.EventSink events;
 
@@ -103,9 +105,85 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 }
                 result.success(null);
                 break;
+            case "startISODepReading":
+                Log.d("isodep", "start reading");
+                startReadingISODep(result);
+                break;
+            case "connectISODep":
+                connectIsoDep(result);
+                break;
+            case "closeISODep":
+                closeIsoDep(result);
+                break;
+            case "setTimeOutIsoDep":
+                setTimeOutIsoDep(call, result);
+                break;
+            case "transceiveIsoDep":
+                transceiveIsoDep(call, result);
+                break;
             default:
                 result.notImplemented();
         }
+    }
+
+    private void startReadingISODep( final Result result ) {
+        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(activity);
+        if (adapter == null) return;
+        Bundle bundle = new Bundle();
+        int DEFAULT_READER_FLAGS = NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_NFC_B | NfcAdapter.FLAG_READER_NFC_F | NfcAdapter.FLAG_READER_NFC_V;
+        adapter.enableReaderMode(activity, new NfcAdapter.ReaderCallback() {
+            @Override
+            public void onTagDiscovered(Tag tag) {
+                Log.d("tag", tag.toString() );
+                IsoDep new_iso_dep = IsoDep.get(tag);
+                if ( new_iso_dep == null ) return;
+                iso_dep = new_iso_dep;
+                eventSuccess(result, null);
+                Log.d("tag", "event success" );
+            }
+        }, DEFAULT_READER_FLAGS, bundle);
+    }
+
+    private void connectIsoDep( final Result result ) {
+        try {
+            iso_dep.connect();
+            eventSuccess(result,null);
+        } catch (IOException e) {
+            eventError( result, e.getMessage(), e.getLocalizedMessage(), e.getStackTrace());
+        }
+    }
+
+    private void closeIsoDep( final Result result ) {
+        try {
+            iso_dep.close();
+            eventSuccess(result,null);
+        } catch (IOException e) {
+            eventError( result, e.getMessage(), e.getLocalizedMessage(), e.getStackTrace());
+        }
+    }
+
+    private void setTimeOutIsoDep( final MethodCall call, final Result result ) {
+        if ( !call.hasArgument("timeout") ) {
+            eventError( result,"timeout must be provided", null, null);
+            return;
+        }
+        iso_dep.setTimeout( (int)call.argument("timeout") );
+        eventSuccess( result, null);
+    }
+
+    private void transceiveIsoDep(final MethodCall call, final Result result ) {
+        if ( !call.hasArgument("data") ) {
+            eventError(result,"To transceive data must be provided", null, null);
+            return;
+        }
+        final byte[] data = call.argument("data");
+        try {
+            final byte[] response = iso_dep.transceive(data);
+            eventSuccess( result, response );
+        } catch (IOException e) {
+            eventError( result, e.getMessage(), e.getLocalizedMessage(), e.getStackTrace() );
+        }
+
     }
 
     private Boolean nfcIsEnabled() {
@@ -257,5 +335,23 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             }
         };
         mainThread.post(runnable);
+    }
+    
+    private void eventSuccess(final Result result, final Object parameter) {
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                result.success(parameter);
+            }
+        });
+    }
+    
+    private void eventError( final Result result, final String code, final String message, final Object details) {
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                result.error(code, message, details);
+            }
+        });
     }
 }
