@@ -40,12 +40,37 @@ class NFC {
 
         List<NDEFRecord> records = [];
         for (var record in tag["records"]) {
+          NFCTypeNameFormat tnf;
+          switch (record["tnf"]) {
+            case "empty":
+              tnf = NFCTypeNameFormat.empty;
+              break;
+            case "well_known":
+              tnf = NFCTypeNameFormat.well_known;
+              break;
+            case "mime_media":
+              tnf = NFCTypeNameFormat.mime_media;
+              break;
+            case "absolute_uri":
+              tnf = NFCTypeNameFormat.absolute_uri;
+              break;
+            case "external_type":
+              tnf = NFCTypeNameFormat.external_type;
+              break;
+            case "unchanged":
+              tnf = NFCTypeNameFormat.unchanged;
+              break;
+            default:
+              tnf = NFCTypeNameFormat.unknown;
+          }
+
           records.add(NDEFRecord._internal(
             record["id"],
             record["payload"],
             record["type"],
-            record["tnf"] != null ? int.parse(record["tnf"]) : 0,
+            tnf,
             record["data"],
+            record["languageCode"],
           ));
         }
 
@@ -193,13 +218,13 @@ abstract class NFCTag {
 }
 
 class NDEFMessage implements NFCMessage {
-  String id;
+  final String id;
   String type;
   final List<NDEFRecord> records;
 
-  NDEFMessage.ofRecords(this.records);
+  NDEFMessage.withRecords(this.records, {this.id});
 
-  NDEFMessage(this.type, this.records);
+  NDEFMessage(this.type, this.records) : id = null;
 
   NDEFMessage._internal(this.id, this.type, this.records);
 
@@ -231,34 +256,61 @@ class NDEFMessage implements NFCMessage {
   }
 }
 
+enum NFCTypeNameFormat {
+  empty,
+  well_known,
+  mime_media,
+  absolute_uri,
+  external_type,
+  unknown,
+  unchanged,
+}
+
 class NDEFRecord {
   final String id;
   final String payload;
   final String type;
   final String data;
+  final NFCTypeNameFormat tnf;
 
-  // TODO
-  /// tnf is only available on Android
-  int tnf;
+  /// languageCode will be the language code of a well known text record. If the
+  /// record is not created with the well known TNF and Text RTD, this will be
+  /// null.
+  final String languageCode;
+
+  NDEFRecord.empty()
+      : id = null,
+        type = "",
+        payload = "",
+        data = "",
+        tnf = NFCTypeNameFormat.empty,
+        languageCode = null;
 
   NDEFRecord.plain(String data)
-      : this.id = null,
-        this.type = "text/plain",
-        this.payload = data,
-        this.data = data;
+      : id = null,
+        type = "text/plain",
+        payload = data,
+        this.data = data,
+        tnf = NFCTypeNameFormat.unknown,
+        languageCode = null; // TODO
 
   NDEFRecord.type(this.type, String payload)
-      : this.id = null,
-        this.data = payload,
-        this.payload = payload;
+      : id = null,
+        data = payload,
+        this.payload = payload,
+        tnf = NFCTypeNameFormat.mime_media,
+        languageCode = null;
 
-  NDEFRecord.text(String message, {languageCode = "en "})
-      : this.id = null,
-        this.data = message,
-        this.payload = languageCode + message,
-        this.type = "T";
+  NDEFRecord.text(String message, {languageCode = "en"})
+      : id = null,
+        data = message,
+        payload = languageCode + message,
+        type = "T",
+        tnf = NFCTypeNameFormat.well_known,
+        this.languageCode = languageCode;
 
-  NDEFRecord._internal(this.id, this.payload, this.type, this.tnf, this.data);
+  NDEFRecord._internal(
+      this.id, this.payload, this.type, this.tnf, this.data, this.languageCode);
 
   Map<String, dynamic> _toMap() {
     return {

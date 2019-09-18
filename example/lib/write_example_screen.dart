@@ -36,7 +36,7 @@ class _WriteExampleScreenState extends State<WriteExampleScreen> {
         record.payloadController.text,
       );
     }).toList();
-    NDEFMessage message = NDEFMessage.ofRecords(records);
+    NDEFMessage message = NDEFMessage.withRecords(records);
 
     // Show dialog on Android (iOS has it's own one)
     if (Platform.isAndroid) {

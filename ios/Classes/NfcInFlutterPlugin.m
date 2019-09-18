@@ -137,25 +137,52 @@
 // formatMessageWithIdentifier turns a NFCNDEFMessage into a NSDictionary that
 // is ready to be sent to Flutter
 - (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString* _Nonnull)identifier message:(NFCNDEFMessage* _Nonnull)message {
-    NSMutableArray<NSDictionary*>* records = [[NSMutableArray alloc] initWithCapacity:[[message records] count]];
-    for (NFCNDEFPayload* payload in [message records]) {
+    NSLog(@"records: %lu", (unsigned long)message.records.count);
+    NSMutableArray<NSDictionary*>* records = [[NSMutableArray alloc] initWithCapacity:message.records.count];
+    for (NFCNDEFPayload* payload in message.records) {
         NSString* type;
         type = [[NSString alloc]
-                initWithData:[payload type]
+                initWithData:payload.type
                 encoding:NSUTF8StringEncoding];
         NSString* payloadData;
         payloadData = [[NSString alloc]
-                       initWithData:[payload payload]
+                       initWithData:payload.payload
                        encoding:NSUTF8StringEncoding];
         NSString* identifier;
         identifier = [[NSString alloc]
-                      initWithData:[payload identifier]
+                      initWithData:payload.identifier
                       encoding:NSUTF8StringEncoding];
+        
+        NSString* tnf;
+        switch (payload.typeNameFormat) {
+            case NFCTypeNameFormatEmpty:
+                tnf = @"empty";
+                break;
+            case NFCTypeNameFormatNFCWellKnown:
+                tnf = @"well_known";
+                break;
+            case NFCTypeNameFormatMedia:
+                tnf = @"mime_media";
+                break;
+            case NFCTypeNameFormatAbsoluteURI:
+                tnf = @"absolute_uri";
+                break;
+            case NFCTypeNameFormatNFCExternal:
+                tnf = @"external";
+                break;
+            case NFCTypeNameFormatUnchanged:
+                tnf = @"unchanged";
+                break;
+            default:
+                tnf = @"unknown";
+        }
         
         NSDictionary* record = @{
             @"type": type,
             @"payload": payloadData,
+            @"data": payloadData,
             @"id": identifier,
+            @"tnf": tnf,
         };
         [records addObject:record];
     }
@@ -229,15 +256,25 @@
     lastTag = tags[[tags count] - 1];
     
     for (id<NFCNDEFTag> tag in tags) {
-        // Read the message from the tag
-        [tag readNDEFWithCompletionHandler:^(NFCNDEFMessage * _Nullable message, NSError * _Nullable error) {
-            // TODO: Check for error
-            NSDictionary* result = [self formatMessageWithIdentifier:@"" message:message];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (self->events != nil) {
-                    self->events(result);
+        [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
+            if (error != nil) {
+                NSLog(@"connect error: %@", error.localizedDescription);
+                return;
+            }
+            [tag readNDEFWithCompletionHandler:^(NFCNDEFMessage * _Nullable message, NSError * _Nullable error) {
+                
+                if (error != nil) {
+                    NSLog(@"ERROR: %@", error.localizedDescription);
+                    return;
                 }
-            });
+                
+                NSDictionary* result = [self formatMessageWithIdentifier:@"" message:message];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (self->events != nil) {
+                        self->events(result);
+                    }
+                });
+            }];
         }];
     }
 }
@@ -251,6 +288,7 @@
     NSArray* recordList = [data valueForKey:@"records"];
     // records is a mutable array of records for the final NDEF message
     NSMutableArray<NSArray<NFCNDEFPayload*>*>* records = [[NSMutableArray alloc] initWithCapacity:[recordList count]];
+    // TODO: continue
 }
 
 @end

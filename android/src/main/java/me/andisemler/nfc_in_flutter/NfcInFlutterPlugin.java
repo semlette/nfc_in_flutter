@@ -251,37 +251,173 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         for (NdefRecord record : message.getRecords()) {
             Map<String, String> recordMap = new HashMap<>();
             byte[] recordPayload = record.getPayload();
-            int spliceLength = 0;
             Charset charset = StandardCharsets.UTF_8;
-            if (record.getTnf() == NdefRecord.TNF_WELL_KNOWN) {
-                byte[] type = record.getType();
-                if (Arrays.equals(type, NdefRecord.RTD_TEXT)) {
-                    charset = ((recordPayload[0] & 128) == 0) ? StandardCharsets.UTF_8 : StandardCharsets.UTF_16;
-                    spliceLength = (recordPayload[0] & 51) + 1; // Language code length
-                } else if (Arrays.equals(type, NdefRecord.RTD_URI)) {
-                    int prefixIndex = (recordPayload[0] & 0xff);
-                    if (prefixIndex >= 44) {
-                        throw new FormatException("Record payload has an invalid URI prefix");
-                    }
-                    spliceLength = 1;
-                }
+            short tnf = record.getTnf();
+            byte[] type = record.getType();
+            if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
+                charset = ((recordPayload[0] & 128) == 0) ? StandardCharsets.UTF_8 : StandardCharsets.UTF_16;
             }
 
-            recordMap.put("payload", new String(recordPayload, charset));
-            recordMap.put("data", new String(recordPayload, spliceLength, recordPayload.length - spliceLength, charset));
+            // If the record's tnf is well known and the RTD is set to URI,
+            // the URL prefix should be added to the payload
+            if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_URI)) {
+                recordMap.put("data", new String(recordPayload, 1, recordPayload.length - 1, charset));
+
+                String url = "";
+                byte prefixByte = recordPayload[0];
+                // https://android.googlesource.com/platform/frameworks/base/+/master/core/java/android/nfc/NdefRecord.java#238
+                switch (prefixByte) {
+                    case 0x01:
+                        url = "http://www.";
+                        break;
+                    case 0x02:
+                        url = "https://www.";
+                        break;
+                    case 0x03:
+                        url = "http://";
+                        break;
+                    case 0x04:
+                        url = "https://";
+                        break;
+                    case 0x05:
+                        url = "tel:";
+                        break;
+                    case 0x06:
+                        url = "mailto:";
+                        break;
+                    case 0x07:
+                        url = "ftp://anonymous:anonymous@";
+                        break;
+                    case 0x08:
+                        url = "ftp://ftp.";
+                        break;
+                    case 0x09:
+                        url = "ftps://";
+                        break;
+                    case 0x0A:
+                        url = "sftp://";
+                        break;
+                    case 0x0B:
+                        url = "smb://";
+                        break;
+                    case 0x0C:
+                        url = "nfs://";
+                        break;
+                    case 0x0D:
+                        url = "ftp://";
+                        break;
+                    case 0x0E:
+                        url = "dav://";
+                        break;
+                    case 0x0F:
+                        url = "news:";
+                        break;
+                    case 0x10:
+                        url = "telnet://";
+                        break;
+                    case 0x11:
+                        url = "imap:";
+                        break;
+                    case 0x12:
+                        url = "rtsp://";
+                        break;
+                    case 0x13:
+                        url = "urn:";
+                        break;
+                    case 0x14:
+                        url = "pop:";
+                        break;
+                    case 0x15:
+                        url = "sip:";
+                        break;
+                    case 0x16:
+                        url = "sips";
+                        break;
+                    case 0x17:
+                        url = "tftp:";
+                        break;
+                    case 0x18:
+                        url = "btspp://";
+                        break;
+                    case 0x19:
+                        url = "btl2cap://";
+                        break;
+                    case 0x1A:
+                        url = "btgoep://";
+                        break;
+                    case 0x1B:
+                        url = "btgoep://";
+                        break;
+                    case 0x1C:
+                        url = "irdaobex://";
+                        break;
+                    case 0x1D:
+                        url = "file://";
+                        break;
+                    case 0x1E:
+                        url = "urn:epc:id:";
+                        break;
+                    case 0x1F:
+                        url = "urn:epc:tag:";
+                        break;
+                    case 0x20:
+                        url = "urn:epc:pat:";
+                        break;
+                    case 0x21:
+                        url = "urn:epc:raw:";
+                        break;
+                    case 0x22:
+                        url = "urn:epc:";
+                        break;
+                    case 0x23:
+                        url = "urn:nfc:";
+                        break;
+                }
+                recordMap.put("payload", url + new String(recordPayload, 1, recordPayload.length - 1, charset));
+            } else if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
+                int languageCodeLength = (recordPayload[0] & 0x3f) + 1;
+                recordMap.put("payload", new String(recordPayload, 1, recordPayload.length - 1, charset));
+                recordMap.put("languageCode", new String(recordPayload, 1, languageCodeLength - 1, charset));
+                recordMap.put("data", new String(recordPayload, languageCodeLength, recordPayload.length - languageCodeLength, charset));
+            } else {
+                recordMap.put("payload", new String(recordPayload, charset));
+                recordMap.put("data", new String(recordPayload, charset));
+            }
+
             recordMap.put("id", new String(record.getId(), StandardCharsets.UTF_8));
             recordMap.put("type", new String(record.getType(), StandardCharsets.UTF_8));
-            recordMap.put("tnf", String.valueOf(record.getTnf()));
+
+            String tnfValue;
+            switch (tnf) {
+                case NdefRecord.TNF_EMPTY:
+                    tnfValue = "empty";
+                    break;
+                case NdefRecord.TNF_WELL_KNOWN:
+                    tnfValue = "well_known";
+                    break;
+                case NdefRecord.TNF_MIME_MEDIA:
+                    tnfValue = "mime_media";
+                    break;
+                case NdefRecord.TNF_ABSOLUTE_URI:
+                    tnfValue = "absolute_uri";
+                    break;
+                case NdefRecord.TNF_EXTERNAL_TYPE:
+                    tnfValue = "external_type";
+                    break;
+                case NdefRecord.TNF_UNCHANGED:
+                    tnfValue = "unchanged";
+                    break;
+                default:
+                    tnfValue = "unknown";
+            }
+
+            recordMap.put("tnf", tnfValue);
             records.add(recordMap);
         }
-<<<<<<< HEAD
         byte[] idByteArray = ndef.getTag().getId();
         // Fancy string formatting snippet is from
         // https://gist.github.com/luixal/5768921#gistcomment-1788815
         result.put("id", String.format("%0" + (idByteArray.length * 2) + "X", new BigInteger(1, idByteArray)));
-=======
-        result.put("id", new String(ndef.getTag().getId(), StandardCharsets.UTF_8));
->>>>>>> writing
         result.put("message_type", "ndef");
         result.put("type", ndef.getType());
         result.put("records", records);
@@ -299,15 +435,15 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         List mapRecords = (List) mapRecordsObj;
         int amountOfRecords = mapRecords.size();
         NdefRecord[] records = new NdefRecord[amountOfRecords];
-        for (int i = 0;i < amountOfRecords; i++) {
+        for (int i = 0; i < amountOfRecords; i++) {
             Object mapRecordObj = mapRecords.get(i);
             if (!(mapRecordObj instanceof Map)) {
                 throw new IllegalArgumentException("record is not a map");
             }
             Map mapRecord = (Map) mapRecordObj;
             records[i] = NdefRecord.createMime(
-                (String) mapRecord.get("type"),
-                ((String) mapRecord.get("payload")).getBytes()
+                    (String) mapRecord.get("type"),
+                    ((String) mapRecord.get("payload")).getBytes()
             );
         }
         return new NdefMessage(records);
