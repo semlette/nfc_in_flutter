@@ -144,10 +144,158 @@
         type = [[NSString alloc]
                 initWithData:payload.type
                 encoding:NSUTF8StringEncoding];
+        
         NSString* payloadData;
-        payloadData = [[NSString alloc]
-                       initWithData:payload.payload
-                       encoding:NSUTF8StringEncoding];
+        NSString* data;
+        NSString* languageCode;
+        if ([@"T" isEqualToString:type]) {
+            // Remove the first byte from the payload
+            payloadData = [[NSString alloc]
+                    initWithData:[payload.payload
+                                  subdataWithRange:NSMakeRange(1, payload.payload.length-1)]
+                    encoding:NSUTF8StringEncoding];
+            
+            const unsigned char* bytes = [payload.payload bytes];
+            int languageCodeLength = bytes[0] & 0x3f;
+            languageCode = [[NSString alloc]
+                            initWithData:[payload.payload
+                                          subdataWithRange:NSMakeRange(1, languageCodeLength)]
+                            encoding:NSUTF8StringEncoding];
+            // Exclude the language code from the data
+            data = [[NSString alloc]
+                   initWithData:[payload.payload
+                                 subdataWithRange:NSMakeRange(languageCodeLength+1, payload.payload.length-languageCodeLength-1)]
+                   encoding:NSUTF8StringEncoding];
+        } else if ([@"U" isEqualToString:type]) {
+            NSString* url;
+            const unsigned char* bytes = [payload.payload bytes];
+            int prefixByte = bytes[0];
+            switch (prefixByte) {
+                case 0x01:
+                    url = @"http://www.";
+                    break;
+                case 0x02:
+                    url = @"https://www.";
+                    break;
+                case 0x03:
+                    url = @"http://";
+                    break;
+                case 0x04:
+                    url = @"https://";
+                    break;
+                case 0x05:
+                    url = @"tel:";
+                    break;
+                case 0x06:
+                    url = @"mailto:";
+                    break;
+                case 0x07:
+                    url = @"ftp://anonymous:anonymous@";
+                    break;
+                case 0x08:
+                    url = @"ftp://ftp.";
+                    break;
+                case 0x09:
+                    url = @"ftps://";
+                    break;
+                case 0x0A:
+                    url = @"sftp://";
+                    break;
+                case 0x0B:
+                    url = @"smb://";
+                    break;
+                case 0x0C:
+                    url = @"nfs://";
+                    break;
+                case 0x0D:
+                    url = @"ftp://";
+                    break;
+                case 0x0E:
+                    url = @"dav://";
+                    break;
+                case 0x0F:
+                    url = @"news:";
+                    break;
+                case 0x10:
+                    url = @"telnet://";
+                    break;
+                case 0x11:
+                    url = @"imap:";
+                    break;
+                case 0x12:
+                    url = @"rtsp://";
+                    break;
+                case 0x13:
+                    url = @"urn:";
+                    break;
+                case 0x14:
+                    url = @"pop:";
+                    break;
+                case 0x15:
+                    url = @"sip:";
+                    break;
+                case 0x16:
+                    url = @"sips";
+                    break;
+                case 0x17:
+                    url = @"tftp:";
+                    break;
+                case 0x18:
+                    url = @"btspp://";
+                    break;
+                case 0x19:
+                    url = @"btl2cap://";
+                    break;
+                case 0x1A:
+                    url = @"btgoep://";
+                    break;
+                case 0x1B:
+                    url = @"btgoep://";
+                    break;
+                case 0x1C:
+                    url = @"irdaobex://";
+                    break;
+                case 0x1D:
+                    url = @"file://";
+                    break;
+                case 0x1E:
+                    url = @"urn:epc:id:";
+                    break;
+                case 0x1F:
+                    url = @"urn:epc:tag:";
+                    break;
+                case 0x20:
+                    url = @"urn:epc:pat:";
+                    break;
+                case 0x21:
+                    url = @"urn:epc:raw:";
+                    break;
+                case 0x22:
+                    url = @"urn:epc:";
+                    break;
+                case 0x23:
+                    url = @"urn:nfc:";
+                    break;
+            }
+            // Remove the first byte from and add the URL prefix to the payload
+            NSString* trimmedPayload = [[NSString alloc] initWithData:
+                                        [payload.payload subdataWithRange:NSMakeRange(1, payload.payload.length-1)] encoding:NSUTF8StringEncoding];
+            NSMutableString* payloadString = [[NSMutableString alloc]
+                                              initWithString:trimmedPayload];
+            [payloadString insertString:url atIndex:0];
+            payloadData = payloadString;
+            // Remove the prefix from the payload
+            data = [[NSString alloc]
+                    initWithData:[payload.payload
+                                  subdataWithRange:NSMakeRange(1, payload.payload.length-1)]
+                    encoding:NSUTF8StringEncoding];
+        } else {
+            payloadData = [[NSString alloc]
+                           initWithData:payload.payload
+                           encoding:NSUTF8StringEncoding];
+            data = payloadData;
+        }
+        
         NSString* identifier;
         identifier = [[NSString alloc]
                       initWithData:payload.identifier
@@ -177,13 +325,15 @@
                 tnf = @"unknown";
         }
         
-        NSDictionary* record = @{
-            @"type": type,
-            @"payload": payloadData,
-            @"data": payloadData,
-            @"id": identifier,
-            @"tnf": tnf,
-        };
+        NSMutableDictionary* record = [[NSMutableDictionary alloc]
+                                       initWithObjectsAndKeys:type, @"type",
+                                       payloadData, @"payload",
+                                       data, @"data",
+                                       identifier, @"id",
+                                       tnf, @"tnf", nil];
+        if (languageCode != nil) {
+            [record setObject:languageCode forKey:@"languageCode"];
+        }
         [records addObject:record];
     }
     NSDictionary* result = @{
