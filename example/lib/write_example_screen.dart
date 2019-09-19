@@ -58,34 +58,10 @@ class _WriteExampleScreenState extends State<WriteExampleScreen> {
       );
     }
 
-    // Listen for tags and write to the first one
-    NDEFMessage targetMessage;
-    bool connected = false;
-    try {
-      targetMessage = await NFC.readNDEF(once: true).first;
-      if (!targetMessage.tag.writable) {
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Tag cannot be written to"),
-          ),
-        );
-        return;
-      }
-      await targetMessage.tag.connect();
-      connected = true;
-      targetMessage.tag.write(message);
-    } on NFCUserCanceledSessionException catch (_) {
-      _hasClosedWriteDialog = true;
-    } catch (e) {
-      print(e);
-    } finally {
-      if (!_hasClosedWriteDialog) {
-        Navigator.pop(context);
-      }
-      if (connected) {
-        targetMessage.tag.close();
-      }
+    // Write to the first tag scanned
+    await NFC.writeNDEF(message).first;
+    if (!_hasClosedWriteDialog) {
+      Navigator.pop(context);
     }
   }
 

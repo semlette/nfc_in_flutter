@@ -9,6 +9,7 @@ import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.Ndef;
+import android.nfc.tech.NdefFormatable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -23,6 +24,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.WeakHashMap;
 
 import io.flutter.plugin.common.EventChannel;
@@ -125,10 +127,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                     result.success(null);
                 } catch (NfcInFlutterException e) {
                     result.error(e.code, e.message, e.details);
-                } catch (IOException e) {
-                    result.error("IOError", e.getMessage(), null);
-                } catch (FormatException e) {
-                    result.error("NDEFBadFormatError", e.getMessage(), null);
                 }
                 break;
             default:
@@ -183,7 +181,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 Log.e(LOG_TAG, "unknown reader mode: " + currentReaderMode);
         }
         events = null;
-        currentReaderMode = null;
     }
 
     @Override
@@ -194,11 +191,18 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             // tag is not in NDEF format; skip!
             return;
         }
+        boolean closed = false;
         try {
             ndef.connect();
             NdefMessage message = ndef.getNdefMessage();
             if (message == null) {
                 return;
+            }
+            try {
+                ndef.close();
+                closed = true;
+            } catch (IOException e) {
+                Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
             }
             eventSuccess(formatNDEFMessageToResult(ndef, message));
         } catch (IOException e) {
@@ -208,12 +212,13 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         } catch (FormatException e) {
             eventError("NDEFBadFormatError", e.getMessage(), null);
         } finally {
-            try {
-                ndef.close();
-            } catch (IOException e) {
-                Map<String, Object> details = new HashMap<>();
-                details.put("fatal", false);
-                eventError("IOError", e.getMessage(), details);
+            // Close if the tag connection if it isn't already
+            if (!closed) {
+                try {
+                    ndef.close();
+                } catch (IOException e) {
+                    Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
+                }
             }
         }
     }
@@ -238,14 +243,15 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
         NdefMessage message = ndef.getCachedNdefMessage();
         try {
-            Map result = formatNDEFMessageToResult(ndef, message);
-            eventSuccess(result);
-        } catch (FormatException e) {
-            eventError("NDEFBadFormatError", e.getMessage(), null);
+            ndef.close();
+        } catch (IOException e) {
+            Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
         }
+        Map result = formatNDEFMessageToResult(ndef, message);
+        eventSuccess(result);
     }
 
-    private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) throws FormatException {
+    private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) {
         final Map<String, Object> result = new HashMap<>();
         List<Map<String, String>> records = new ArrayList<>();
         for (NdefRecord record : message.getRecords()) {
@@ -421,7 +427,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         result.put("message_type", "ndef");
         result.put("type", ndef.getType());
         result.put("records", records);
-        result.put("writable", true);
+        result.put("writable", ndef.isWritable());
         return result;
     }
 
@@ -441,24 +447,124 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 throw new IllegalArgumentException("record is not a map");
             }
             Map mapRecord = (Map) mapRecordObj;
-            records[i] = NdefRecord.createMime(
-                    (String) mapRecord.get("type"),
-                    ((String) mapRecord.get("payload")).getBytes()
-            );
+            String id = (String) mapRecord.get("id");
+            if (id == null) {
+                id = "";
+            }
+            String type = (String) mapRecord.get("type");
+            if (type == null) {
+                type = "";
+            }
+            String languageCode = (String) mapRecord.get("languageCode");
+            if (languageCode == null) {
+                languageCode = "en";
+            }
+            String payload = (String) mapRecord.get("payload");
+            if (payload == null) {
+                payload = "";
+            }
+            String tnf = (String) mapRecord.get("tnf");
+            if (tnf == null) {
+                throw new IllegalArgumentException("record tnf is null");
+            }
+//            records[i] = NdefRecord.createMime(
+//                    "TEST",
+//                    "DATA".getBytes()
+//            );
+            // Construct record
+            NdefRecord record;
+            switch (tnf) {
+                case "empty":
+                    record = new NdefRecord(NdefRecord.TNF_EMPTY, new byte[0], id.getBytes(), new byte[0]);
+                    break;
+                case "well_known":
+                    if (type.equals("T")) {
+                        record = NdefRecord.createTextRecord(languageCode, payload);
+                    } else if (type.equals("U")) {
+                        record = NdefRecord.createUri(payload);
+                    } else {
+                        throw new IllegalArgumentException("only text and URI types are supported for well known types");
+                    }
+                    break;
+                case "mime_media":
+                    record = NdefRecord.createMime(type, payload.getBytes());
+                    break;
+                case "absolute_uri":
+                    record = new NdefRecord(NdefRecord.TNF_ABSOLUTE_URI, new byte[0], id.getBytes(), payload.getBytes());
+                    break;
+                case "external_type":
+                    // TODO
+                    record = new NdefRecord(NdefRecord.TNF_EXTERNAL_TYPE, new byte[0], id.getBytes(), payload.getBytes());
+                    break;
+                case "unchanged":
+                    // TODO
+                    record = new NdefRecord(NdefRecord.TNF_UNCHANGED, new byte[0], id.getBytes(), payload.getBytes());
+                    break;
+                default:
+                    record = new NdefRecord(NdefRecord.TNF_UNKNOWN, new byte[0], id.getBytes(), payload.getBytes());
+            }
+            records[i] = record;
         }
         return new NdefMessage(records);
     }
 
-    private void writeNDEF(NdefMessage message) throws NfcInFlutterException, IOException, FormatException {
-        if (lastTag == null) {
-            throw new NfcInFlutterException("NFCTagUnavailable", "tag is no longer available", null);
-        }
+    private void writeNDEF(NdefMessage message) throws NfcInFlutterException {
         Ndef ndef = Ndef.get(lastTag);
-        if (ndef == null) {
+        NdefFormatable formatable = NdefFormatable.get(lastTag);
+
+        // Absolute try-catch monstrosity
+
+        if (ndef != null) {
+            try {
+                ndef.connect();
+                if (ndef.getMaxSize() < message.getByteArrayLength()) {
+                    HashMap<String, Object> details = new HashMap<>();
+                    details.put("maxSize", ndef.getMaxSize());
+                    throw new NfcInFlutterException("NDEFMessageTooLarge", "message is too large for this tag", details);
+                }
+                try {
+                    ndef.writeNdefMessage(message);
+                } catch (IOException e) {
+                    throw new NfcInFlutterException("IOError", "write to tag error: " + e.getMessage(), null);
+                } catch (FormatException e) {
+                    throw new NfcInFlutterException("NDEFBadFormatError", e.getMessage(), null);
+                }
+            } catch (IOException e) {
+                throw new NfcInFlutterException("IOError", e.getMessage(), null);
+            } finally {
+                try {
+                    ndef.close();
+                } catch (IOException e) {
+                    Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
+                }
+            }
+        } else if (formatable != null) {
+            boolean closed = false;
+            try {
+                formatable.connect();
+                formatable.format(message);
+                try {
+                    formatable.close();
+                    closed = true;
+                } catch (IOException e) {
+                    Log.e(LOG_TAG, "close NDEF formatable error: " + e.getMessage());
+                }
+            } catch (IOException e) {
+                throw new NfcInFlutterException("IOError", e.getMessage(), null);
+            } catch (FormatException e) {
+                throw new NfcInFlutterException("NDEFBadFormatError", e.getMessage(), null);
+            } finally {
+                if (!closed) {
+                    try {
+                        formatable.close();
+                    } catch (IOException e) {
+                        Log.e(LOG_TAG, "close NDEF formatable error: " + e.getMessage());
+                    }
+                }
+            }
+        } else {
             throw new NfcInFlutterException("NDEFUnsupported", "tag doesn't support NDEF", null);
         }
-        ndef.connect();
-        ndef.writeNdefMessage(message);
     }
 
     private void eventSuccess(final Object result) {

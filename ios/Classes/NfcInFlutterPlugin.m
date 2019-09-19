@@ -316,7 +316,7 @@
                 tnf = @"absolute_uri";
                 break;
             case NFCTypeNameFormatNFCExternal:
-                tnf = @"external";
+                tnf = @"external_type";
                 break;
             case NFCTypeNameFormatUnchanged:
                 tnf = @"unchanged";

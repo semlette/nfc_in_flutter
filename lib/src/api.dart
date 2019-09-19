@@ -12,6 +12,63 @@ class NFC {
 
   static Stream<dynamic> _tagStream;
 
+  static void _createTagStream() {
+    _tagStream = _eventChannel.receiveBroadcastStream().where((tag) {
+      // In the future when more tag types are supported, this must be changed.
+      assert(tag is Map);
+      return tag["message_type"] == "ndef";
+    }).map<NFCMessage>((tag) {
+      assert(tag is Map);
+
+      List<NDEFRecord> records = [];
+      for (var record in tag["records"]) {
+        NFCTypeNameFormat tnf;
+        switch (record["tnf"]) {
+          case "empty":
+            tnf = NFCTypeNameFormat.empty;
+            break;
+          case "well_known":
+            tnf = NFCTypeNameFormat.well_known;
+            break;
+          case "mime_media":
+            tnf = NFCTypeNameFormat.mime_media;
+            break;
+          case "absolute_uri":
+            tnf = NFCTypeNameFormat.absolute_uri;
+            break;
+          case "external_type":
+            tnf = NFCTypeNameFormat.external_type;
+            break;
+          case "unchanged":
+            tnf = NFCTypeNameFormat.unchanged;
+            break;
+          default:
+            tnf = NFCTypeNameFormat.unknown;
+        }
+
+        records.add(NDEFRecord._internal(
+          record["id"],
+          record["payload"],
+          record["type"],
+          tnf,
+          record["data"],
+          record["languageCode"],
+        ));
+      }
+
+      return NDEFMessage._internal(tag["id"], tag["type"], records);
+    });
+  }
+
+  static void _startReadingNDEF(bool once, NFCReaderMode readerMode) {
+    // Start reading
+    Map arguments = {
+      "scan_once": once,
+      "reader_mode": readerMode.name,
+    }..addAll(readerMode._options);
+    _channel.invokeMethod("startNDEFReading", arguments);
+  }
+
   /// readNDEF starts listening for NDEF formatted tags. Any non-NDEF formatted
   /// tags will be filtered out.
   static Stream<NDEFMessage> readNDEF(
@@ -31,51 +88,7 @@ class NFC {
       /// This is ignored on iOS as it only has one reading mode.
       NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
     if (_tagStream == null) {
-      _tagStream = _eventChannel.receiveBroadcastStream().where((tag) {
-        // In the future when more tag types are supported, this must be changed.
-        assert(tag is Map);
-        return tag["message_type"] == "ndef";
-      }).map<NFCMessage>((tag) {
-        assert(tag is Map);
-
-        List<NDEFRecord> records = [];
-        for (var record in tag["records"]) {
-          NFCTypeNameFormat tnf;
-          switch (record["tnf"]) {
-            case "empty":
-              tnf = NFCTypeNameFormat.empty;
-              break;
-            case "well_known":
-              tnf = NFCTypeNameFormat.well_known;
-              break;
-            case "mime_media":
-              tnf = NFCTypeNameFormat.mime_media;
-              break;
-            case "absolute_uri":
-              tnf = NFCTypeNameFormat.absolute_uri;
-              break;
-            case "external_type":
-              tnf = NFCTypeNameFormat.external_type;
-              break;
-            case "unchanged":
-              tnf = NFCTypeNameFormat.unchanged;
-              break;
-            default:
-              tnf = NFCTypeNameFormat.unknown;
-          }
-
-          records.add(NDEFRecord._internal(
-            record["id"],
-            record["payload"],
-            record["type"],
-            tnf,
-            record["data"],
-            record["languageCode"],
-          ));
-        }
-
-        return NDEFMessage._internal(tag["id"], tag["type"], records);
-      });
+      _createTagStream();
     }
     // Create a StreamController to wrap the tag stream. Any errors will be
     // converted to their matching exception classes. The controller stream will
@@ -131,15 +144,59 @@ class NFC {
       subscription.cancel();
     };
 
-    // Start reading
-    Map arguments = {
-      "scan_once": once,
-      "reader_mode": readerMode.name,
-    }..addAll(readerMode._options);
     try {
-      _channel.invokeMethod("startNDEFReading", arguments);
+      _startReadingNDEF(once, const NFCNormalReaderMode());
     } on PlatformException catch (err) {
-      controller.close();
+      if (err.code == "NFCMultipleReaderModes") {
+        throw NFCMultipleReaderModesException();
+      }
+      throw err;
+    }
+
+    return controller.stream;
+  }
+
+  /// writeNDEF will write [newMessage] to all NDEF compatible tags scanned while
+  /// the stream is active.
+  /// If you only want to write to the first tag, you can set the [once]
+  /// argument to `true` and use the `.first` method on the returned `Stream`.
+  static Stream<NDEFTag> writeNDEF(NDEFMessage newMessage,
+      {
+
+      /// once will stop reading after the first tag has been read.
+      bool once = false,
+
+      /// readerMode specifies which mode the reader should use.
+      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
+    if (_tagStream == null) {
+      _createTagStream();
+    }
+
+    StreamController<NDEFTag> controller = StreamController();
+
+    int writes = 0;
+    StreamSubscription<NFCMessage> stream = _tagStream.listen((msg) async {
+      NDEFMessage message = msg;
+      if (message.tag.writable) {
+        await message.tag.write(newMessage);
+        writes++;
+        controller.add(message.tag);
+      }
+
+      if (once && writes > 0) {
+        controller.close();
+      }
+    }, onDone: () {
+      _tagStream = null;
+      return controller.close();
+    });
+    controller.onCancel = () {
+      stream.cancel();
+    };
+
+    try {
+      _startReadingNDEF(once, readerMode);
+    } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
       }
@@ -167,7 +224,7 @@ abstract class NFCReaderMode {
 }
 
 /// NFCNormalReaderMode uses the platform's normal reading mode. This does not
-/// allow reading from emulated host cards or other peer-to-peer operations.
+/// allow reading from emulated host cards.
 class NFCNormalReaderMode implements NFCReaderMode {
   String get name => "normal";
 
@@ -188,8 +245,8 @@ class NFCNormalReaderMode implements NFCReaderMode {
   }
 }
 
-/// NFCDispatchReaderMode allows reading from emulated host cards and other
-/// peer-to-peer operations by using different platform APIs.
+/// NFCDispatchReaderMode uses the Android NFC Foreground Dispatch API to read
+/// tags with.
 class NFCDispatchReaderMode implements NFCReaderMode {
   String get name => "dispatch";
 
@@ -213,8 +270,6 @@ abstract class NFCMessage {
 abstract class NFCTag {
   String get id;
   bool get writable;
-  Future connect();
-  Future close();
 }
 
 class NDEFMessage implements NFCMessage {
@@ -228,12 +283,23 @@ class NDEFMessage implements NFCMessage {
 
   NDEFMessage._internal(this.id, this.type, this.records);
 
-  // payload returns the contents of the first non-empty record. If all records
+  // payload returns the payload of the first non-empty record. If all records
   // are empty it will return null.
   String get payload {
     for (var record in records) {
       if (record.payload != "") {
         return record.payload;
+      }
+    }
+    return null;
+  }
+
+  // data returns the contents of the first non-empty record. If all records
+  // are empty it will return null.
+  String get data {
+    for (var record in records) {
+      if (record.data != "") {
+        return record.data;
       }
     }
     return null;
@@ -292,12 +358,12 @@ class NDEFRecord {
         payload = data,
         this.data = data,
         tnf = NFCTypeNameFormat.unknown,
-        languageCode = null; // TODO
+        languageCode = null;
 
   NDEFRecord.type(this.type, String payload)
       : id = null,
-        data = payload,
         this.payload = payload,
+        data = payload,
         tnf = NFCTypeNameFormat.mime_media,
         languageCode = null;
 
@@ -309,43 +375,85 @@ class NDEFRecord {
         tnf = NFCTypeNameFormat.well_known,
         this.languageCode = languageCode;
 
+  NDEFRecord.uri(Uri uri)
+      : id = null,
+        data = uri.toString(),
+        payload = uri.toString(),
+        type = "U",
+        tnf = NFCTypeNameFormat.well_known,
+        languageCode = null;
+
+  NDEFRecord.absoluteURI(Uri uri)
+      : id = null,
+        data = uri.toString(),
+        payload = uri.toString(),
+        type = "",
+        tnf = NFCTypeNameFormat.absolute_uri,
+        languageCode = null;
+
+  NDEFRecord.custom({
+    this.id,
+    this.payload = "",
+    this.type = "",
+    this.tnf = NFCTypeNameFormat.unknown,
+    this.languageCode,
+  }) : this.data = payload;
+
   NDEFRecord._internal(
       this.id, this.payload, this.type, this.tnf, this.data, this.languageCode);
 
   Map<String, dynamic> _toMap() {
+    String tnf;
+    switch (this.tnf) {
+      case NFCTypeNameFormat.empty:
+        tnf = "empty";
+        break;
+      case NFCTypeNameFormat.well_known:
+        tnf = "well_known";
+        break;
+      case NFCTypeNameFormat.mime_media:
+        tnf = "mime_media";
+        break;
+      case NFCTypeNameFormat.absolute_uri:
+        tnf = "absolute_uri";
+        break;
+      case NFCTypeNameFormat.external_type:
+        tnf = "external_type";
+        break;
+      case NFCTypeNameFormat.unchanged:
+        tnf = "unchanged";
+        break;
+      default:
+        tnf = "unknown";
+    }
+
     return {
       "id": id,
       "payload": payload,
       "type": type,
+      "tnf": tnf,
     };
   }
 }
 
 class NDEFTag implements NFCTag {
-  String id;
-  bool writable;
+  final String id;
+  final bool writable;
 
   NDEFTag._internal(this.id, this.writable);
 
-  NDEFTag._fromMap(Map<String, dynamic> map) {
-    assert(map["id"] is String);
-    id = map["id"];
-    assert(map["writable"] is bool);
-    writable = map["writable"];
-  }
-
-  @override
-  Future connect() async {}
-
-  @override
-  Future close() async {}
+  NDEFTag._fromMap(Map<String, dynamic> map)
+      : assert(map["id"] is String),
+        assert(map["writable" is bool]),
+        id = map["id"],
+        writable = map["writable"];
 
   Future write(NDEFMessage message) async {
     if (!writable) {
       throw NFCTagUnwritableException();
     }
     try {
-      NFC._channel.invokeMethod("writeNDEF", {
+      return NFC._channel.invokeMethod("writeNDEF", {
         "id": id,
         "message": message._toMap(),
       });
