@@ -1,7 +1,5 @@
 ## 2.0.0
 
--   **COULD BE BREAKING**: Android minimum SDK version has been raised to 21
-
 -   Added `noSounds` flag to `NFCNormalReaderMode`
 
 On Android, this tells the system not to play sounds when a NFC chip is scanned.
@@ -23,7 +21,9 @@ use to connect and write to tags.
 
 `NDEFRecord.uri` for records with well known URI types
 
-`NDEFRecord.absoluteURI`
+`NDEFRecord.absoluteUri`
+
+`NDEFRecord.external`
 
 `NDEFRecord.custom`
 

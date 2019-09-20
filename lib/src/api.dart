@@ -178,7 +178,12 @@ class NFC {
     StreamSubscription<NFCMessage> stream = _tagStream.listen((msg) async {
       NDEFMessage message = msg;
       if (message.tag.writable) {
-        await message.tag.write(newMessage);
+        try {
+          await message.tag.write(newMessage);
+        } catch (err) {
+          controller.addError(err);
+          return;
+        }
         writes++;
         controller.add(message.tag);
       }
@@ -357,7 +362,7 @@ class NDEFRecord {
         type = "text/plain",
         payload = data,
         this.data = data,
-        tnf = NFCTypeNameFormat.unknown,
+        tnf = NFCTypeNameFormat.mime_media,
         languageCode = null;
 
   NDEFRecord.type(this.type, String payload)
@@ -383,7 +388,7 @@ class NDEFRecord {
         tnf = NFCTypeNameFormat.well_known,
         languageCode = null;
 
-  NDEFRecord.absoluteURI(Uri uri)
+  NDEFRecord.absoluteUri(Uri uri)
       : id = null,
         data = uri.toString(),
         payload = uri.toString(),

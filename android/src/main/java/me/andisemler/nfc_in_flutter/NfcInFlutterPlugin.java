@@ -16,16 +16,15 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.text.Format;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.WeakHashMap;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -457,7 +456,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             }
             String languageCode = (String) mapRecord.get("languageCode");
             if (languageCode == null) {
-                languageCode = "en";
+                languageCode = Locale.getDefault().getLanguage();
             }
             String payload = (String) mapRecord.get("payload");
             if (payload == null) {
@@ -467,43 +466,61 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             if (tnf == null) {
                 throw new IllegalArgumentException("record tnf is null");
             }
-//            records[i] = NdefRecord.createMime(
-//                    "TEST",
-//                    "DATA".getBytes()
-//            );
+
+            byte[] idBytes = id.getBytes();
+            byte[] typeBytes = type.getBytes();
+            byte[] languageCodeBytes = languageCode.getBytes(StandardCharsets.US_ASCII);
+            byte[] payloadBytes = payload.getBytes();
+
+            short tnfValue;
             // Construct record
-            NdefRecord record;
             switch (tnf) {
                 case "empty":
-                    record = new NdefRecord(NdefRecord.TNF_EMPTY, new byte[0], id.getBytes(), new byte[0]);
+                    // Empty records are not allowed to have a ID, type or payload.
+                    tnfValue = NdefRecord.TNF_EMPTY;
+                    idBytes = null;
+                    typeBytes = null;
+                    payloadBytes = null;
                     break;
                 case "well_known":
-                    if (type.equals("T")) {
-                        record = NdefRecord.createTextRecord(languageCode, payload);
-                    } else if (type.equals("U")) {
-                        record = NdefRecord.createUri(payload);
-                    } else {
-                        throw new IllegalArgumentException("only text and URI types are supported for well known types");
+                    tnfValue = NdefRecord.TNF_WELL_KNOWN;
+                    if (Arrays.equals(typeBytes, NdefRecord.RTD_TEXT)) {
+                        // The following code basically constructs a text record like NdefRecord.createTextRecord() does,
+                        // however NdefRecord.createTextRecord() is only available in SDK 21+ while nfc_in_flutter
+                        // goes down to SDK 19.
+//                        if (languageCodeBytes.length >= 64) {
+//                            throw new IllegalArgumentException("language code is too long, must be <64 bytes.");
+//                        }
+
+                        ByteBuffer buffer = ByteBuffer.allocate(1 + languageCodeBytes.length + payloadBytes.length);
+                        byte status = (byte) (languageCode.length() & 0xFF);
+                        buffer.put(status);
+                        buffer.put(languageCode.getBytes());
+                        buffer.put(payloadBytes);
+                        payloadBytes = buffer.array();
+                    } else if (Arrays.equals(typeBytes, NdefRecord.RTD_URI)) {
+                        // Instead of manually constructing a URI payload with the correct prefix and
+                        // everything, create a record using NdefRecord.createUri and copy it's payload.
+                        NdefRecord uriRecord = NdefRecord.createUri(payload);
+                        payloadBytes = uriRecord.getPayload();
                     }
                     break;
                 case "mime_media":
-                    record = NdefRecord.createMime(type, payload.getBytes());
+                    tnfValue = NdefRecord.TNF_MIME_MEDIA;
                     break;
                 case "absolute_uri":
-                    record = new NdefRecord(NdefRecord.TNF_ABSOLUTE_URI, new byte[0], id.getBytes(), payload.getBytes());
+                    tnfValue = NdefRecord.TNF_ABSOLUTE_URI;
                     break;
                 case "external_type":
-                    // TODO
-                    record = new NdefRecord(NdefRecord.TNF_EXTERNAL_TYPE, new byte[0], id.getBytes(), payload.getBytes());
+                    tnfValue = NdefRecord.TNF_EXTERNAL_TYPE;
                     break;
                 case "unchanged":
-                    // TODO
-                    record = new NdefRecord(NdefRecord.TNF_UNCHANGED, new byte[0], id.getBytes(), payload.getBytes());
-                    break;
+                    throw new IllegalArgumentException("records are not allowed to have their TNF set to UNCHANGED");
                 default:
-                    record = new NdefRecord(NdefRecord.TNF_UNKNOWN, new byte[0], id.getBytes(), payload.getBytes());
+                    tnfValue = NdefRecord.TNF_UNKNOWN;
+                    typeBytes = null;
             }
-            records[i] = record;
+            records[i] = new NdefRecord(tnfValue, typeBytes, idBytes, payloadBytes);
         }
         return new NdefMessage(records);
     }
