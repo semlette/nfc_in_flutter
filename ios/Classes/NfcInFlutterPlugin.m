@@ -25,7 +25,9 @@
     
 - (id)init:(dispatch_queue_t)dispatchQueue channel:(FlutterMethodChannel*)channel {
     self->dispatchQueue = dispatchQueue;
-    if (@available(iOS 11.0, *)) {
+    if (@available(iOS 13.0, *)) {
+        wrapper = [[NFCWritableWrapperImpl alloc] init:channel dispatchQueue:dispatchQueue];
+    } else if (@available(iOS 11.0, *)) {
         wrapper = [[NFCWrapperImpl alloc] init:channel dispatchQueue:dispatchQueue];
     } else {
         wrapper = [[NFCUnsupportedWrapper alloc] init];
@@ -45,6 +47,10 @@
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
         NSDictionary* args = call.arguments;
         [wrapper startReading:[args[@"scan_once"] boolValue]];
+        result(nil);
+    } else if ([@"writeNDEF" isEqualToString:call.method]) {
+        NSDictionary* args = call.arguments;
+        [wrapper writeToTag:args];
         result(nil);
     } else {
         result(FlutterMethodNotImplemented);
@@ -344,6 +350,62 @@
     return result;
 }
 
+- (NFCNDEFMessage* _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary* _Nonnull)dictionary API_AVAILABLE(ios(13.0)) {
+    NSMutableArray<NFCNDEFPayload*>* ndefRecords = [[NSMutableArray alloc] init];
+    
+    NSArray<NSDictionary*>* records = [dictionary valueForKey:@"records"];
+    for (NSDictionary* record in records) {
+        NSString* recordID = [record valueForKey:@"id"];
+        NSString* recordType = [record valueForKey:@"type"];
+        NSString* recordPayload = [record valueForKey:@"payload"];
+        NSString* recordTNF = [record valueForKey:@"tnf"];
+        NSString* recordLanguageCode = [record valueForKey:@"languageCode"];
+        
+        NSData* idData = [recordID dataUsingEncoding:NSUTF8StringEncoding];
+        NSData* payloadData = [recordPayload dataUsingEncoding:NSUTF8StringEncoding];
+        NSData* typeData = [recordType dataUsingEncoding:NSUTF8StringEncoding];
+        NFCTypeNameFormat tnfValue;
+        
+        if ([@"empty" isEqualToString:recordTNF]) {
+            // Empty records are not allowed to have a ID, type or payload.
+            NFCNDEFPayload* ndefRecord = [[NFCNDEFPayload alloc] initWithFormat:NFCTypeNameFormatEmpty type:[[NSData alloc] init] identifier:[[NSData alloc] init] payload:[[NSData alloc] init]];
+            [ndefRecords addObject:ndefRecord];
+            continue;
+        } else if ([@"well_known" isEqualToString:recordTNF]) {
+            if ([@"T" isEqualToString:recordType]) {
+                NSLocale* locale = [NSLocale localeWithLocaleIdentifier:recordLanguageCode];
+                NFCNDEFPayload* ndefRecord = [NFCNDEFPayload wellKnowTypeTextPayloadWithString:recordPayload locale:locale];
+                [ndefRecords addObject:ndefRecord];
+                continue;
+            } else if ([@"U" isEqualToString:recordType]) {
+                NFCNDEFPayload* ndefRecord = [NFCNDEFPayload wellKnownTypeURIPayloadWithString:recordPayload];
+                [ndefRecords addObject:ndefRecord];
+                continue;
+            } else {
+                tnfValue = NFCTypeNameFormatNFCWellKnown;
+            }
+        } else if ([@"mime_media" isEqualToString:recordTNF]) {
+            tnfValue = NFCTypeNameFormatMedia;
+        } else if ([@"absolute_uri" isEqualToString:recordTNF]) {
+            tnfValue = NFCTypeNameFormatAbsoluteURI;
+        } else if ([@"external_type" isEqualToString:recordTNF]) {
+            tnfValue = NFCTypeNameFormatNFCExternal;
+        } else if ([@"unchanged" isEqualToString:recordTNF]) {
+            // TODO: Return error, not supposed to change the TNF value
+            tnfValue = NFCTypeNameFormatUnchanged;
+        } else {
+            tnfValue = NFCTypeNameFormatUnknown;
+            // Unknown records are not allowed to have a type
+            typeData = [[NSData alloc] init];
+        }
+        
+        NFCNDEFPayload* ndefRecord = [[NFCNDEFPayload alloc] initWithFormat:tnfValue type:typeData identifier:idData payload:payloadData];
+        [ndefRecords addObject:ndefRecord];
+    }
+    
+    return [[NFCNDEFMessage alloc] initWithNDEFRecords:ndefRecords];
+}
+
 @end
 
 @implementation NFCWrapperImpl
@@ -402,9 +464,6 @@
     //   ]
     // }
     
-    // Set the last tags scanned
-    lastTag = tags[[tags count] - 1];
-    
     for (id<NFCNDEFTag> tag in tags) {
         [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
             if (error != nil) {
@@ -434,11 +493,41 @@
 }
 
 - (void)writeToTag:(NSDictionary*)data {
-    // recordList is a list of records sent by Flutter
-    NSArray* recordList = [data valueForKey:@"records"];
-    // records is a mutable array of records for the final NDEF message
-    NSMutableArray<NSArray<NFCNDEFPayload*>*>* records = [[NSMutableArray alloc] initWithCapacity:[recordList count]];
-    // TODO: continue
+    return;
+}
+
+@end
+
+@implementation NFCWritableWrapperImpl
+
+- (void)readerSession:(NFCNDEFReaderSession *)session
+        didDetectTags:(NSArray<__kindof id<NFCNDEFTag>> *)tags API_AVAILABLE(ios(13.0)) {
+    [super readerSession:session didDetectTags:tags];
+    
+    // Set the last tags scanned
+    lastTag = tags[[tags count] - 1];
+}
+
+- (void)writeToTag:(NSDictionary*)data {
+    NFCNDEFMessage* ndefMessage = [self formatNDEFMessageWithDictionary:data];
+    
+    if (lastTag != nil) {
+        [lastTag queryNDEFStatusWithCompletionHandler:^(NFCNDEFStatus status, NSUInteger capacity, NSError* _Nullable error) {
+            
+            if (error != nil) {
+                NSLog(@"query last tag status error: %@", error.localizedDescription);
+                return;
+            }
+            
+            if (status == NFCNDEFStatusReadWrite) {
+                [self->lastTag writeNDEF:ndefMessage completionHandler:^(NSError* _Nullable error) {
+                    if (error != nil) {
+                        NSLog(@"write ndef message error: %@", error.localizedDescription);
+                    }
+                }];
+            }
+        }];
+    }
 }
 
 @end

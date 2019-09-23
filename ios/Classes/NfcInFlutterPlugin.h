@@ -4,7 +4,7 @@
 @protocol NFCWrapper <FlutterStreamHandler>
 - (void)startReading:(BOOL)once;
 - (BOOL)isEnabled;
-- (void)writeToTag:(NSDictionary*)data;
+- (void)writeToTag:(NSDictionary* _Nonnull)data;
 @end
 
 
@@ -26,15 +26,22 @@ API_AVAILABLE(ios(11))
 - (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments;
 
 - (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString* _Nonnull)identifier message:(NFCNDEFMessage* _Nonnull)message;
+
+- (NFCNDEFMessage * _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary* _Nonnull)dictionary;
 @end
 
 API_AVAILABLE(ios(11))
 @interface NFCWrapperImpl : NFCWrapperBase <NFCWrapper, NFCNDEFReaderSessionDelegate> {
     FlutterMethodChannel* methodChannel;
     dispatch_queue_t dispatchQueue;
-    id<NFCTag> lastTag;
 }
 -(id _Nullable )init:(FlutterMethodChannel*_Nonnull)methodChannel dispatchQueue:(dispatch_queue_t _Nonnull )dispatchQueue;
+@end
+
+API_AVAILABLE(ios(13))
+@interface NFCWritableWrapperImpl : NFCWrapperImpl {
+    id<NFCNDEFTag> lastTag;
+}
 @end
 
 @interface NFCUnsupportedWrapper : NSObject <NFCWrapper>
