@@ -433,10 +433,10 @@ class NDEFRecord {
     }
 
     return {
-      "id": id,
-      "payload": payload,
-      "type": type,
-      "tnf": tnf,
+      "id": id ?? "",
+      "payload": payload ?? "",
+      "type": type ?? "",
+      "tnf": tnf ?? "unknown",
     };
   }
 }

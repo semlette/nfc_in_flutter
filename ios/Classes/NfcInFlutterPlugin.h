@@ -4,7 +4,7 @@
 @protocol NFCWrapper <FlutterStreamHandler>
 - (void)startReading:(BOOL)once;
 - (BOOL)isEnabled;
-- (void)writeToTag:(NSDictionary* _Nonnull)data;
+- (void)writeToTag:(NSDictionary* _Nonnull)data completionHandler:(void (^_Nonnull) (FlutterError * _Nullable error))completionHandler;
 @end
 
 
@@ -39,9 +39,10 @@ API_AVAILABLE(ios(11))
 @end
 
 API_AVAILABLE(ios(13))
-@interface NFCWritableWrapperImpl : NFCWrapperImpl {
-    id<NFCNDEFTag> lastTag;
-}
+@interface NFCWritableWrapperImpl : NFCWrapperImpl
+
+@property (atomic, retain) __kindof id<NFCNDEFTag> _Nullable lastTag;
+
 @end
 
 @interface NFCUnsupportedWrapper : NSObject <NFCWrapper>

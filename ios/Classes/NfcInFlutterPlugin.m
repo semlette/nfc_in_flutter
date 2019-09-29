@@ -50,8 +50,9 @@
         result(nil);
     } else if ([@"writeNDEF" isEqualToString:call.method]) {
         NSDictionary* args = call.arguments;
-        [wrapper writeToTag:args];
-        result(nil);
+        [wrapper writeToTag:args completionHandler:^(FlutterError * _Nullable error) {
+            result(error);
+        }];
     } else {
         result(FlutterMethodNotImplemented);
     }
@@ -143,7 +144,6 @@
 // formatMessageWithIdentifier turns a NFCNDEFMessage into a NSDictionary that
 // is ready to be sent to Flutter
 - (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString* _Nonnull)identifier message:(NFCNDEFMessage* _Nonnull)message {
-    NSLog(@"records: %lu", (unsigned long)message.records.count);
     NSMutableArray<NSDictionary*>* records = [[NSMutableArray alloc] initWithCapacity:message.records.count];
     for (NFCNDEFPayload* payload in message.records) {
         NSString* type;
@@ -353,7 +353,8 @@
 - (NFCNDEFMessage* _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary* _Nonnull)dictionary API_AVAILABLE(ios(13.0)) {
     NSMutableArray<NFCNDEFPayload*>* ndefRecords = [[NSMutableArray alloc] init];
     
-    NSArray<NSDictionary*>* records = [dictionary valueForKey:@"records"];
+    NSDictionary *message = [dictionary valueForKey:@"message"];
+    NSArray<NSDictionary*>* records = [message valueForKey:@"records"];
     for (NSDictionary* record in records) {
         NSString* recordID = [record valueForKey:@"id"];
         NSString* recordType = [record valueForKey:@"type"];
@@ -361,9 +362,24 @@
         NSString* recordTNF = [record valueForKey:@"tnf"];
         NSString* recordLanguageCode = [record valueForKey:@"languageCode"];
         
-        NSData* idData = [recordID dataUsingEncoding:NSUTF8StringEncoding];
-        NSData* payloadData = [recordPayload dataUsingEncoding:NSUTF8StringEncoding];
-        NSData* typeData = [recordType dataUsingEncoding:NSUTF8StringEncoding];
+        NSData* idData;
+        if (recordID) {
+            idData = [recordID dataUsingEncoding:NSUTF8StringEncoding];
+        } else {
+            idData = [NSData data];
+        }
+        NSData* payloadData;
+        if (recordPayload) {
+            payloadData = [recordPayload dataUsingEncoding:NSUTF8StringEncoding];
+        } else {
+            payloadData = [NSData data];
+        }
+        NSData* typeData;
+        if (recordType) {
+            typeData = [recordType dataUsingEncoding:NSUTF8StringEncoding];
+        } else {
+            typeData = [NSData data];
+        }
         NFCTypeNameFormat tnfValue;
         
         if ([@"empty" isEqualToString:recordTNF]) {
@@ -393,6 +409,7 @@
         } else if ([@"unchanged" isEqualToString:recordTNF]) {
             // TODO: Return error, not supposed to change the TNF value
             tnfValue = NFCTypeNameFormatUnchanged;
+            continue;
         } else {
             tnfValue = NFCTypeNameFormatUnknown;
             // Unknown records are not allowed to have a type
@@ -488,17 +505,17 @@
     }
 }
 
-- (void)readerSessionDidBecomeActive:(NFCNDEFReaderSession *)session API_AVAILABLE(ios(13.0)) {
-    NSLog(@"didBecomeActive");
-}
+- (void)readerSessionDidBecomeActive:(NFCNDEFReaderSession *)session API_AVAILABLE(ios(13.0)) {}
 
-- (void)writeToTag:(NSDictionary*)data {
-    return;
+- (void)writeToTag:(NSDictionary*)data completionHandler:(void (^_Nonnull) (FlutterError * _Nullable error))completionHandler {
+    completionHandler(nil);
 }
 
 @end
 
 @implementation NFCWritableWrapperImpl
+
+@synthesize lastTag;
 
 - (void)readerSession:(NFCNDEFReaderSession *)session
         didDetectTags:(NSArray<__kindof id<NFCNDEFTag>> *)tags API_AVAILABLE(ios(13.0)) {
@@ -508,25 +525,62 @@
     lastTag = tags[[tags count] - 1];
 }
 
-- (void)writeToTag:(NSDictionary*)data {
+- (void)writeToTag:(NSDictionary*)data completionHandler:(void (^_Nonnull) (FlutterError * _Nullable error))completionHandler {
     NFCNDEFMessage* ndefMessage = [self formatNDEFMessageWithDictionary:data];
     
     if (lastTag != nil) {
-        [lastTag queryNDEFStatusWithCompletionHandler:^(NFCNDEFStatus status, NSUInteger capacity, NSError* _Nullable error) {
-            
+        if (!lastTag.available) {
+            completionHandler([FlutterError errorWithCode:@"NFCTagUnavailable" message:@"the tag is unavailable for writing" details:nil]);
+            return;
+        }
+        
+        // Connect to the tag.
+        // The tag might already be connected to, but it doesn't hurt to do it again.
+        [session connectToTag:lastTag completionHandler:^(NSError * _Nullable error) {
             if (error != nil) {
-                NSLog(@"query last tag status error: %@", error.localizedDescription);
+                completionHandler([FlutterError errorWithCode:@"IOError" message:[NSString stringWithFormat:@"could not connect to tag: %@", error.localizedDescription] details:nil]);
                 return;
             }
-            
-            if (status == NFCNDEFStatusReadWrite) {
-                [self->lastTag writeNDEF:ndefMessage completionHandler:^(NSError* _Nullable error) {
-                    if (error != nil) {
-                        NSLog(@"write ndef message error: %@", error.localizedDescription);
-                    }
-                }];
-            }
+            // Get the tag's read/write status
+            [self->lastTag queryNDEFStatusWithCompletionHandler:^(NFCNDEFStatus status, NSUInteger capacity, NSError* _Nullable error) {
+                
+                if (error != nil) {
+                    completionHandler([FlutterError errorWithCode:@"NFCUnexpectedError" message:error.localizedDescription details:nil]);
+                    return;
+                }
+                
+                // Write to the tag if possible
+                if (status == NFCNDEFStatusReadWrite) {
+                    [self->lastTag writeNDEF:ndefMessage completionHandler:^(NSError* _Nullable error) {
+                        if (error != nil) {
+                            FlutterError *flutterError;
+                            switch (error.code) {
+                                case NFCNdefReaderSessionErrorTagNotWritable:
+                                    flutterError = [FlutterError errorWithCode:@"NFCTagNotWritableError" message:@"the tag is not writable" details:nil];
+                                    break;
+                                case NFCNdefReaderSessionErrorTagSizeTooSmall:
+                                    flutterError = [FlutterError errorWithCode:@"NFCTagSizeTooSmallError" message:@"the tag's memory size is too small" details:nil];
+                                    break;
+                                case NFCNdefReaderSessionErrorTagUpdateFailure:
+                                    flutterError = [FlutterError errorWithCode:@"NFCUpdateTagError" message:@"the reader failed to update the tag" details:nil];
+                                    break;
+                                default:
+                                    flutterError = [FlutterError errorWithCode:@"NFCUnexpectedError" message:error.localizedDescription details:nil];
+                            }
+                            completionHandler(flutterError);
+                        } else {
+                            // Successfully wrote data to the tag
+                            completionHandler(nil);
+                        }
+                    }];
+                } else {
+                    // Writing is not supported on this tag
+                    completionHandler([FlutterError errorWithCode:@"NFCTagNotWritableError" message:@"the tag is not writable" details:nil]);
+                }
+            }];
         }];
+    } else {
+        completionHandler([FlutterError errorWithCode:@"NFCTagUnavailable" message:@"no tag to write to" details:nil]);
     }
 }
 
@@ -553,8 +607,11 @@
     return nil;
 }
 
-- (void)writeToTag:(NSDictionary*)data {
-    return;
+- (void)writeToTag:(NSDictionary*)data completionHandler:(void (^_Nonnull) (FlutterError * _Nullable error))completionHandler {
+    completionHandler([FlutterError
+                       errorWithCode:@"NFCWritingUnsupportedFeatureError"
+                       message:nil
+                       details:nil]);
 }
     
 @end
