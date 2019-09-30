@@ -1,6 +1,6 @@
 # nfc_in_flutter
 
-NFC in Flutter is a plugin for reading NFC tags in Flutter. It works on both Android and iOS with a simple stream interface.
+NFC in Flutter is a plugin for reading and writing NFC tags in Flutter. It works on both Android and iOS with a simple stream interface.
 
 ⚠️ Currently only NDEF formatted tags are supported.
 
@@ -10,7 +10,7 @@ NFC in Flutter is a plugin for reading NFC tags in Flutter. It works on both And
 
 ```dart
 // NFC.readNDEF returns a stream of NDEFMessage
-Stream<NDEFMessage> stream = NFC.readNDEF()
+Stream<NDEFMessage> stream = NFC.readNDEF();
 
 stream.listen((NDEFMessage message) {
     print("records: ${message.records.length}");
@@ -23,6 +23,59 @@ stream.listen((NDEFMessage message) {
 NDEFMessage message = await NFC.readNDEF(once: true).first;
 print("payload: ${message.payload}");
 // once: true` only scans one tag!
+```
+
+### Writing to tags
+
+You can access a message's NFC tag using the `NDEFMessage`'s `.tag` property. The tag has a `.write` method, which allows you to write a NDEF message to the tag.
+
+_Note that the read stream must still be open when the `.write` method is called. This means that the `once` argument in `.readNDEF()` cannot be used._
+
+```dart
+Stream<NDEFMessage> stream = NFC.readNDEF();
+
+stream.listen((NDEFMessage message) {
+    NDEFMessage newMessage = NDEFMessage.withRecords(
+        NDEFRecord.mime("text/plain", "hello world")
+    );
+    message.tag.write(newMessage);
+});
+```
+
+You can also use the `NFC.writeNDEF(NDEFMessage)` method, which wraps the code above with support for the `once` argument.
+
+```dart
+NDEFMessage newMessage = NDEFMessage.withRecords(
+    NDEFRecord.mime("text/plain", "hello world")
+);
+Stream<NDEFTag> stream = NFC.writeNDEF(newMessage);
+
+stream.listen((NDEFTag tag) {
+    print("wrote to tag");
+});
+```
+
+If you only want to write to one tag, you can set the `once` argument to true.
+
+```dart
+NDEFMessage newMessage = NDEFMessage.withRecords(
+    NDEFRecord.mime("text/plain", "hello world")
+);
+Stream<NDEFTag> stream = NFC.writeNDEF(newMessage, once: true);
+
+stream.listen((NDEFTag tag) {
+    print("only wrote to one tag!");
+});
+```
+
+And if you would rather use a `Future` based API, you can await the returned stream's `.first` method.
+
+```dart
+NDEFMessage newMessage = NDEFMessage.withRecords(
+    NDEFRecord.mime("text/plain", "hello world")
+);
+
+await NFC.writeNDEF(newMessage).first;
 ```
 
 ## Example
@@ -97,7 +150,7 @@ Add `nfc_in_flutter` to your `pubspec.yaml`
 
 ```yaml
 dependencies:
-  nfc_in_flutter: ^1.2.0
+    nfc_in_flutter: ^2.0.0
 ```
 
 ### iOS
@@ -109,8 +162,9 @@ On iOS you must add turn on the Near Field Communication capability, add a NFC u
 Open your iOS project in Xcode, find your project's target and navigate to Capabilities. Scroll down to 'Near Field Communication Tag Reading' and turn it on.
 
 Turning on 'Near Field Communication Tag reading'
-- Adds the NFC tag-reading feature to the App ID.
-- Adds the Near Field Communication Tag Reader Session Formats Entitlement to the entitlements file.
+
+-   Adds the NFC tag-reading feature to the App ID.
+-   Adds the Near Field Communication Tag Reader Session Formats Entitlement to the entitlements file.
 
 from [developer.apple.com: Building an NFC Tag-Reader app](https://developer.apple.com/documentation/corenfc/building_an_nfc_tag-reader_app?language=objc)
 
@@ -128,11 +182,13 @@ Open your `ios/Runner/Info.plist` file and add a new `NFCReaderUsageDescription`
 ### Android
 
 Add the following to your app's `AndroidManifest.xml` file:
+
 ```xml
 <uses-permission android:name="android.permission.NFC" />
 ```
 
 If your app **requires** NFC, you can add the following to only allow it to be downloaded on devices that supports NFC:
+
 ```xml
 <uses-feature android:name="android.hardware.nfc" android:required="true" />
 ```
@@ -143,12 +199,12 @@ If you're new to NFC you may come to expect a lot of `readNFC()` calls, but inst
 
 ## Host Card Emulation
 
-NFC in Flutter supports reading from emulated host cards*.
+NFC in Flutter supports reading from emulated host cards\*.
 
 To read from emulated host cards, you need to do a few things.
 
-- Call `readNDEF()` with the `readerMode` argument set to an instance of `NFCDispatchReaderMode`.
-- Insert the following `<intent-filter />` in your `AndroidManifest.xml` activity:
+-   Call `readNDEF()` with the `readerMode` argument set to an instance of `NFCDispatchReaderMode`.
+-   Insert the following `<intent-filter />` in your `AndroidManifest.xml` activity:
 
 ```xml
 <intent-filter>
@@ -157,7 +213,7 @@ To read from emulated host cards, you need to do a few things.
 </intent-filter>
 ```
 
-* Not properly tested on iOS
+-   Not properly tested on iOS
 
 ### ⚠️ Multiple reader modes
 
@@ -175,7 +231,7 @@ image from [developer.apple.com: Near Field Communication](https://developer.app
 
 ## Error handling
 
-Errors are no exception to NFC in Flutter (*hah, get it*). The stream returned by `NFC.readNDEF()` can send 7 different exceptions, and even worse: they are different for each platform!
+Errors are no exception to NFC in Flutter (_hah, get it_). The stream returned by `NFC.readNDEF()` can send 7 different exceptions, and even worse: they are different for each platform!
 
 See the full example in the [example directory](/tree/master/example) for an example on how to check for errors.
 
