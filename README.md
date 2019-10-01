@@ -72,10 +72,10 @@ And if you would rather use a `Future` based API, you can await the returned str
 
 ```dart
 NDEFMessage newMessage = NDEFMessage.withRecords(
-    NDEFRecord.mime("text/plain", "hello world")
+    NDEFRecord.type("text/plain", "hello world")
 );
 
-await NFC.writeNDEF(newMessage).first;
+await NFC.writeNDEF(newMessage, once: true).first;
 ```
 
 ## Example
