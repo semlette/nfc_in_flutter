@@ -37,7 +37,7 @@ class NFC {
             tnf = NFCTypeNameFormat.absolute_uri;
             break;
           case "external_type":
-            tnf = NFCTypeNameFormat.external_type;
+            tnf = NFCTypeNameFormat.external;
             break;
           case "unchanged":
             tnf = NFCTypeNameFormat.unchanged;
@@ -332,7 +332,7 @@ enum NFCTypeNameFormat {
   well_known,
   mime_media,
   absolute_uri,
-  external_type,
+  external,
   unknown,
   unchanged,
 }
@@ -396,6 +396,13 @@ class NDEFRecord {
         tnf = NFCTypeNameFormat.absolute_uri,
         languageCode = null;
 
+  NDEFRecord.external(this.type, String payload)
+      : id = null,
+        data = payload,
+        this.payload = payload,
+        tnf = NFCTypeNameFormat.external,
+        languageCode = null;
+
   NDEFRecord.custom({
     this.id,
     this.payload = "",
@@ -422,7 +429,7 @@ class NDEFRecord {
       case NFCTypeNameFormat.absolute_uri:
         tnf = "absolute_uri";
         break;
-      case NFCTypeNameFormat.external_type:
+      case NFCTypeNameFormat.external:
         tnf = "external_type";
         break;
       case NFCTypeNameFormat.unchanged:
