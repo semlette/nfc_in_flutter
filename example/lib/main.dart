@@ -3,7 +3,45 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nfc_in_flutter/nfc_in_flutter.dart';
 
-void main() => runApp(MyApp());
+import './read_example_screen.dart';
+import './write_example_screen.dart';
+
+void main() => runApp(ExampleApp());
+
+class ExampleApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text("NFC in Flutter examples"),
+        ),
+        body: Builder(builder: (context) {
+          return ListView(
+            children: <Widget>[
+              ListTile(
+                title: const Text("Read NFC"),
+                onTap: () {
+                  Navigator.pushNamed(context, "/read_example");
+                },
+              ),
+              ListTile(
+                title: const Text("Write NFC"),
+                onTap: () {
+                  Navigator.pushNamed(context, "/write_example");
+                },
+              ),
+            ],
+          );
+        }),
+      ),
+      routes: {
+        "/read_example": (context) => ReadExampleScreen(),
+        "/write_example": (context) => WriteExampleScreen(),
+      },
+    );
+  }
+}
 
 class MyApp extends StatefulWidget {
   @override
@@ -55,9 +93,9 @@ class _MyAppState extends State<MyApp> {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-                  title: const Text("Error!"),
-                  content: Text(e.toString()),
-                ),
+              title: const Text("Error!"),
+              content: Text(e.toString()),
+            ),
           );
         }
       });
@@ -141,6 +179,11 @@ class _MyAppState extends State<MyApp> {
         body: ListView.builder(
           itemCount: _tags.length,
           itemBuilder: (context, index) {
+            const TextStyle payloadTextStyle = const TextStyle(
+              fontSize: 15,
+              color: const Color(0xFF454545),
+            );
+
             return Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
               child: Column(
@@ -165,10 +208,11 @@ class _MyAppState extends State<MyApp> {
                             ),
                             Text(
                               _tags[index].records[i].payload,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                color: const Color(0xFF454545),
-                              ),
+                              style: payloadTextStyle,
+                            ),
+                            Text(
+                              _tags[index].records[i].data,
+                              style: payloadTextStyle,
                             ),
                           ],
                         ));

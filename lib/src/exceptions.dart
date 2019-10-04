@@ -74,3 +74,62 @@ class NDEFBadFormatException implements Exception {
   @override
   String toString() => message;
 }
+
+/// NFCTagNotWritableException is thrown when an unwritable tag is 'written to'.
+/// This could be because the reader does not support writing to NFC tags or
+/// simply the tag is read-only.
+class NFCTagUnwritableException implements Exception {
+  final message = "tag is not writable";
+
+  @override
+  String toString() => message;
+}
+
+/// NFCTagUnavailableException is thrown when the NFC tag being written to
+/// is no longer in reach.
+class NFCTagUnavailableException implements Exception {
+  final message = "tag is no longer available";
+
+  @override
+  String toString() => message;
+}
+
+/// NDEFUnsupportedException is thrown when a tag does not support NDEF,
+/// but is being written an NDEFMessage.
+class NDEFUnsupportedException implements Exception {
+  final message = "tag does not support NDEF formatting";
+
+  @override
+  String toString() => message;
+}
+
+/// NFCTagNotWritableException is thrown when a non-writable tag is being
+/// written to.
+class NFCTagNotWritableException implements Exception {
+  static const message = "the tag does not support writing";
+
+  @override
+  String toString() => message;
+}
+
+/// NFCTagSizeTooSmallException is thrown when a NDEF message larger than
+/// the tag's maximum size is being written to tag.
+class NFCTagSizeTooSmallException implements Exception {
+  final int maxSize;
+
+  const NFCTagSizeTooSmallException(this.maxSize);
+
+  @override
+  String toString() =>
+      "the new payload exceeds the tag's maximum payload size (maximum $maxSize bytes)";
+}
+
+/// NFCUpdateTagException is thrown when the reader failed to update the tag.
+///
+/// NFCUpdateTagException is only thrown on iOS and is mapped to the [NFCNdefReaderSessionErrorTagUpdateFailure](https://developer.apple.com/documentation/corenfc/nfcreadererror/nfcndefreadersessionerrortagupdatefailure?language=objc) error.
+class NFCUpdateTagException implements Exception {
+  static const message = "failed to update the tag";
+
+  @override
+  String toString() => message;
+}

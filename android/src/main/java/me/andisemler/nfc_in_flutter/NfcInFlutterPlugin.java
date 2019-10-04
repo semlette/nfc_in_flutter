@@ -9,16 +9,21 @@ import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.Ndef;
+import android.nfc.tech.NdefFormatable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import io.flutter.plugin.common.EventChannel;
@@ -47,6 +52,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
     private EventChannel.EventSink events;
 
     private String currentReaderMode = null;
+    private Tag lastTag = null;
 
     /**
      * Plugin registration.
@@ -103,6 +109,25 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 }
                 result.success(null);
                 break;
+            case "writeNDEF":
+                HashMap writeArgs = call.arguments();
+                if (writeArgs == null) {
+                    result.error("NFCMissingArguments", "missing arguments", null);
+                    break;
+                }
+                try {
+                    Map messageMap = (Map) writeArgs.get("message");
+                    if (messageMap == null) {
+                        result.error("NFCMissingNDEFMessage", "a ndef message was not given", null);
+                        break;
+                    }
+                    NdefMessage message = formatMapToNDEFMessage(messageMap);
+                    writeNDEF(message);
+                    result.success(null);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
+                break;
             default:
                 result.notImplemented();
         }
@@ -155,21 +180,28 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 Log.e(LOG_TAG, "unknown reader mode: " + currentReaderMode);
         }
         events = null;
-        currentReaderMode = null;
     }
 
     @Override
     public void onTagDiscovered(Tag tag) {
+        lastTag = tag;
         Ndef ndef = Ndef.get(tag);
         if (ndef == null) {
             // tag is not in NDEF format; skip!
             return;
         }
+        boolean closed = false;
         try {
             ndef.connect();
             NdefMessage message = ndef.getNdefMessage();
             if (message == null) {
                 return;
+            }
+            try {
+                ndef.close();
+                closed = true;
+            } catch (IOException e) {
+                Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
             }
             eventSuccess(formatNDEFMessageToResult(ndef, message));
         } catch (IOException e) {
@@ -179,12 +211,13 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         } catch (FormatException e) {
             eventError("NDEFBadFormatError", e.getMessage(), null);
         } finally {
-            try {
-                ndef.close();
-            } catch (IOException e) {
-                Map<String, Object> details = new HashMap<>();
-                details.put("fatal", false);
-                eventError("IOError", e.getMessage(), details);
+            // Close if the tag connection if it isn't already
+            if (!closed) {
+                try {
+                    ndef.close();
+                } catch (IOException e) {
+                    Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
+                }
             }
         }
     }
@@ -194,6 +227,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         String action = intent.getAction();
         if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
             Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+            lastTag = tag;
             handleNDEFTagFromIntent(tag);
             return true;
         }
@@ -207,7 +241,13 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         }
 
         NdefMessage message = ndef.getCachedNdefMessage();
-        eventSuccess(formatNDEFMessageToResult(ndef, message));
+        try {
+            ndef.close();
+        } catch (IOException e) {
+            Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
+        }
+        Map result = formatNDEFMessageToResult(ndef, message);
+        eventSuccess(result);
     }
 
     private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) {
@@ -215,10 +255,168 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         List<Map<String, String>> records = new ArrayList<>();
         for (NdefRecord record : message.getRecords()) {
             Map<String, String> recordMap = new HashMap<>();
-            recordMap.put("payload", new String(record.getPayload(), StandardCharsets.UTF_8));
+            byte[] recordPayload = record.getPayload();
+            Charset charset = StandardCharsets.UTF_8;
+            short tnf = record.getTnf();
+            byte[] type = record.getType();
+            if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
+                charset = ((recordPayload[0] & 128) == 0) ? StandardCharsets.UTF_8 : StandardCharsets.UTF_16;
+            }
+
+            // If the record's tnf is well known and the RTD is set to URI,
+            // the URL prefix should be added to the payload
+            if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_URI)) {
+                recordMap.put("data", new String(recordPayload, 1, recordPayload.length - 1, charset));
+
+                String url = "";
+                byte prefixByte = recordPayload[0];
+                // https://android.googlesource.com/platform/frameworks/base/+/master/core/java/android/nfc/NdefRecord.java#238
+                switch (prefixByte) {
+                    case 0x01:
+                        url = "http://www.";
+                        break;
+                    case 0x02:
+                        url = "https://www.";
+                        break;
+                    case 0x03:
+                        url = "http://";
+                        break;
+                    case 0x04:
+                        url = "https://";
+                        break;
+                    case 0x05:
+                        url = "tel:";
+                        break;
+                    case 0x06:
+                        url = "mailto:";
+                        break;
+                    case 0x07:
+                        url = "ftp://anonymous:anonymous@";
+                        break;
+                    case 0x08:
+                        url = "ftp://ftp.";
+                        break;
+                    case 0x09:
+                        url = "ftps://";
+                        break;
+                    case 0x0A:
+                        url = "sftp://";
+                        break;
+                    case 0x0B:
+                        url = "smb://";
+                        break;
+                    case 0x0C:
+                        url = "nfs://";
+                        break;
+                    case 0x0D:
+                        url = "ftp://";
+                        break;
+                    case 0x0E:
+                        url = "dav://";
+                        break;
+                    case 0x0F:
+                        url = "news:";
+                        break;
+                    case 0x10:
+                        url = "telnet://";
+                        break;
+                    case 0x11:
+                        url = "imap:";
+                        break;
+                    case 0x12:
+                        url = "rtsp://";
+                        break;
+                    case 0x13:
+                        url = "urn:";
+                        break;
+                    case 0x14:
+                        url = "pop:";
+                        break;
+                    case 0x15:
+                        url = "sip:";
+                        break;
+                    case 0x16:
+                        url = "sips";
+                        break;
+                    case 0x17:
+                        url = "tftp:";
+                        break;
+                    case 0x18:
+                        url = "btspp://";
+                        break;
+                    case 0x19:
+                        url = "btl2cap://";
+                        break;
+                    case 0x1A:
+                        url = "btgoep://";
+                        break;
+                    case 0x1B:
+                        url = "btgoep://";
+                        break;
+                    case 0x1C:
+                        url = "irdaobex://";
+                        break;
+                    case 0x1D:
+                        url = "file://";
+                        break;
+                    case 0x1E:
+                        url = "urn:epc:id:";
+                        break;
+                    case 0x1F:
+                        url = "urn:epc:tag:";
+                        break;
+                    case 0x20:
+                        url = "urn:epc:pat:";
+                        break;
+                    case 0x21:
+                        url = "urn:epc:raw:";
+                        break;
+                    case 0x22:
+                        url = "urn:epc:";
+                        break;
+                    case 0x23:
+                        url = "urn:nfc:";
+                        break;
+                }
+                recordMap.put("payload", url + new String(recordPayload, 1, recordPayload.length - 1, charset));
+            } else if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
+                int languageCodeLength = (recordPayload[0] & 0x3f) + 1;
+                recordMap.put("payload", new String(recordPayload, 1, recordPayload.length - 1, charset));
+                recordMap.put("languageCode", new String(recordPayload, 1, languageCodeLength - 1, charset));
+                recordMap.put("data", new String(recordPayload, languageCodeLength, recordPayload.length - languageCodeLength, charset));
+            } else {
+                recordMap.put("payload", new String(recordPayload, charset));
+                recordMap.put("data", new String(recordPayload, charset));
+            }
+
             recordMap.put("id", new String(record.getId(), StandardCharsets.UTF_8));
             recordMap.put("type", new String(record.getType(), StandardCharsets.UTF_8));
-            recordMap.put("tnf", String.valueOf(record.getTnf()));
+
+            String tnfValue;
+            switch (tnf) {
+                case NdefRecord.TNF_EMPTY:
+                    tnfValue = "empty";
+                    break;
+                case NdefRecord.TNF_WELL_KNOWN:
+                    tnfValue = "well_known";
+                    break;
+                case NdefRecord.TNF_MIME_MEDIA:
+                    tnfValue = "mime_media";
+                    break;
+                case NdefRecord.TNF_ABSOLUTE_URI:
+                    tnfValue = "absolute_uri";
+                    break;
+                case NdefRecord.TNF_EXTERNAL_TYPE:
+                    tnfValue = "external_type";
+                    break;
+                case NdefRecord.TNF_UNCHANGED:
+                    tnfValue = "unchanged";
+                    break;
+                default:
+                    tnfValue = "unknown";
+            }
+
+            recordMap.put("tnf", tnfValue);
             records.add(recordMap);
         }
         byte[] idByteArray = ndef.getTag().getId();
@@ -228,7 +426,158 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         result.put("message_type", "ndef");
         result.put("type", ndef.getType());
         result.put("records", records);
+        result.put("writable", ndef.isWritable());
         return result;
+    }
+
+    private NdefMessage formatMapToNDEFMessage(Map map) throws IllegalArgumentException {
+        Object mapRecordsObj = map.get("records");
+        if (mapRecordsObj == null) {
+            throw new IllegalArgumentException("missing records");
+        } else if (!(mapRecordsObj instanceof List)) {
+            throw new IllegalArgumentException("map key 'records' is not a list");
+        }
+        List mapRecords = (List) mapRecordsObj;
+        int amountOfRecords = mapRecords.size();
+        NdefRecord[] records = new NdefRecord[amountOfRecords];
+        for (int i = 0; i < amountOfRecords; i++) {
+            Object mapRecordObj = mapRecords.get(i);
+            if (!(mapRecordObj instanceof Map)) {
+                throw new IllegalArgumentException("record is not a map");
+            }
+            Map mapRecord = (Map) mapRecordObj;
+            String id = (String) mapRecord.get("id");
+            if (id == null) {
+                id = "";
+            }
+            String type = (String) mapRecord.get("type");
+            if (type == null) {
+                type = "";
+            }
+            String languageCode = (String) mapRecord.get("languageCode");
+            if (languageCode == null) {
+                languageCode = Locale.getDefault().getLanguage();
+            }
+            String payload = (String) mapRecord.get("payload");
+            if (payload == null) {
+                payload = "";
+            }
+            String tnf = (String) mapRecord.get("tnf");
+            if (tnf == null) {
+                throw new IllegalArgumentException("record tnf is null");
+            }
+
+            byte[] idBytes = id.getBytes();
+            byte[] typeBytes = type.getBytes();
+            byte[] languageCodeBytes = languageCode.getBytes(StandardCharsets.US_ASCII);
+            byte[] payloadBytes = payload.getBytes();
+
+            short tnfValue;
+            // Construct record
+            switch (tnf) {
+                case "empty":
+                    // Empty records are not allowed to have a ID, type or payload.
+                    tnfValue = NdefRecord.TNF_EMPTY;
+                    idBytes = null;
+                    typeBytes = null;
+                    payloadBytes = null;
+                    break;
+                case "well_known":
+                    tnfValue = NdefRecord.TNF_WELL_KNOWN;
+                    if (Arrays.equals(typeBytes, NdefRecord.RTD_TEXT)) {
+                        // The following code basically constructs a text record like NdefRecord.createTextRecord() does,
+                        // however NdefRecord.createTextRecord() is only available in SDK 21+ while nfc_in_flutter
+                        // goes down to SDK 19.
+                        ByteBuffer buffer = ByteBuffer.allocate(1 + languageCodeBytes.length + payloadBytes.length);
+                        byte status = (byte) (languageCode.length() & 0xFF);
+                        buffer.put(status);
+                        buffer.put(languageCode.getBytes());
+                        buffer.put(payloadBytes);
+                        payloadBytes = buffer.array();
+                    } else if (Arrays.equals(typeBytes, NdefRecord.RTD_URI)) {
+                        // Instead of manually constructing a URI payload with the correct prefix and
+                        // everything, create a record using NdefRecord.createUri and copy it's payload.
+                        NdefRecord uriRecord = NdefRecord.createUri(payload);
+                        payloadBytes = uriRecord.getPayload();
+                    }
+                    break;
+                case "mime_media":
+                    tnfValue = NdefRecord.TNF_MIME_MEDIA;
+                    break;
+                case "absolute_uri":
+                    tnfValue = NdefRecord.TNF_ABSOLUTE_URI;
+                    break;
+                case "external_type":
+                    tnfValue = NdefRecord.TNF_EXTERNAL_TYPE;
+                    break;
+                case "unchanged":
+                    throw new IllegalArgumentException("records are not allowed to have their TNF set to UNCHANGED");
+                default:
+                    tnfValue = NdefRecord.TNF_UNKNOWN;
+                    typeBytes = null;
+            }
+            records[i] = new NdefRecord(tnfValue, typeBytes, idBytes, payloadBytes);
+        }
+        return new NdefMessage(records);
+    }
+
+    private void writeNDEF(NdefMessage message) throws NfcInFlutterException {
+        Ndef ndef = Ndef.get(lastTag);
+        NdefFormatable formatable = NdefFormatable.get(lastTag);
+
+        // Absolute try-catch monstrosity
+
+        if (ndef != null) {
+            try {
+                ndef.connect();
+                if (ndef.getMaxSize() < message.getByteArrayLength()) {
+                    HashMap<String, Object> details = new HashMap<>();
+                    details.put("maxSize", ndef.getMaxSize());
+                    throw new NfcInFlutterException("NFCTagSizeTooSmallError", "message is too large for this tag", details);
+                }
+                try {
+                    ndef.writeNdefMessage(message);
+                } catch (IOException e) {
+                    throw new NfcInFlutterException("IOError", "write to tag error: " + e.getMessage(), null);
+                } catch (FormatException e) {
+                    throw new NfcInFlutterException("NDEFBadFormatError", e.getMessage(), null);
+                }
+            } catch (IOException e) {
+                throw new NfcInFlutterException("IOError", e.getMessage(), null);
+            } finally {
+                try {
+                    ndef.close();
+                } catch (IOException e) {
+                    Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
+                }
+            }
+        } else if (formatable != null) {
+            boolean closed = false;
+            try {
+                formatable.connect();
+                formatable.format(message);
+                try {
+                    formatable.close();
+                    closed = true;
+                } catch (IOException e) {
+                    Log.e(LOG_TAG, "close NDEF formatable error: " + e.getMessage());
+                }
+            } catch (IOException e) {
+                throw new NfcInFlutterException("IOError", e.getMessage(), null);
+            } catch (FormatException e) {
+                throw new NfcInFlutterException("NDEFBadFormatError", e.getMessage(), null);
+            } finally {
+                if (!closed) {
+                    try {
+                        formatable.close();
+                    } catch (IOException e) {
+                        Log.e(LOG_TAG, "close NDEF formatable error: " + e.getMessage());
+                    }
+                }
+            }
+        } else {
+            throw new NfcInFlutterException("NDEFUnsupported", "tag doesn't support NDEF", null);
+        }
     }
 
     private void eventSuccess(final Object result) {

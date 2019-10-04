@@ -4,19 +4,19 @@ PODS:
     - Flutter
 
 DEPENDENCIES:
-  - Flutter (from `.symlinks/flutter/ios-release`)
+  - Flutter (from `.symlinks/flutter/ios`)
   - nfc_in_flutter (from `.symlinks/plugins/nfc_in_flutter/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
-    :path: ".symlinks/flutter/ios-release"
+    :path: ".symlinks/flutter/ios"
   nfc_in_flutter:
     :path: ".symlinks/plugins/nfc_in_flutter/ios"
 
 SPEC CHECKSUMS:
-  Flutter: 9d0fac939486c9aba2809b7982dfdbb47a7b0296
-  nfc_in_flutter: 1b81fe17f4b4a5db69cee63bb78458b9c7eec4cc
+  Flutter: 0e3d915762c693b495b44d77113d4970485de6ec
+  nfc_in_flutter: 4d93336a67fd4e814fc5581d0aedf2db5d56be6a
 
 PODFILE CHECKSUM: e8988baac3a50f787b9d3ed7ca44957b442f92a7
 
-COCOAPODS: 1.5.3
+COCOAPODS: 1.7.4
