@@ -558,9 +558,13 @@
                                 case NFCNdefReaderSessionErrorTagNotWritable:
                                     flutterError = [FlutterError errorWithCode:@"NFCTagNotWritableError" message:@"the tag is not writable" details:nil];
                                     break;
-                                case NFCNdefReaderSessionErrorTagSizeTooSmall:
-                                    flutterError = [FlutterError errorWithCode:@"NFCTagSizeTooSmallError" message:@"the tag's memory size is too small" details:nil];
+                                case NFCNdefReaderSessionErrorTagSizeTooSmall: {
+                                    NSDictionary *details = @{
+                                        @"maxSize": [NSNumber numberWithInt:capacity],
+                                    };
+                                    flutterError = [FlutterError errorWithCode:@"NFCTagSizeTooSmallError" message:@"the tag's memory size is too small" details:details];
                                     break;
+                                }
                                 case NFCNdefReaderSessionErrorTagUpdateFailure:
                                     flutterError = [FlutterError errorWithCode:@"NFCUpdateTagError" message:@"the reader failed to update the tag" details:nil];
                                     break;

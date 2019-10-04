@@ -488,10 +488,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                         // The following code basically constructs a text record like NdefRecord.createTextRecord() does,
                         // however NdefRecord.createTextRecord() is only available in SDK 21+ while nfc_in_flutter
                         // goes down to SDK 19.
-//                        if (languageCodeBytes.length >= 64) {
-//                            throw new IllegalArgumentException("language code is too long, must be <64 bytes.");
-//                        }
-
                         ByteBuffer buffer = ByteBuffer.allocate(1 + languageCodeBytes.length + payloadBytes.length);
                         byte status = (byte) (languageCode.length() & 0xFF);
                         buffer.put(status);
@@ -537,7 +533,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 if (ndef.getMaxSize() < message.getByteArrayLength()) {
                     HashMap<String, Object> details = new HashMap<>();
                     details.put("maxSize", ndef.getMaxSize());
-                    throw new NfcInFlutterException("NDEFMessageTooLarge", "message is too large for this tag", details);
+                    throw new NfcInFlutterException("NFCTagSizeTooSmallError", "message is too large for this tag", details);
                 }
                 try {
                     ndef.writeNdefMessage(message);

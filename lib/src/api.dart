@@ -464,6 +464,8 @@ class NDEFTag implements NFCTag {
       });
     } on PlatformException catch (e) {
       switch (e.code) {
+        case "NFCUnexpectedError":
+          throw Exception("nfc: unexpected error: " + e.message);
         case "IOError":
           throw NFCIOException(e.message);
         case "NFCTagUnavailable":
@@ -472,6 +474,12 @@ class NDEFTag implements NFCTag {
           throw NDEFUnsupportedException();
         case "NDEFBadFormatError":
           throw NDEFBadFormatException(e.message);
+        case "NFCTagNotWritableError":
+          throw NFCTagNotWritableException();
+        case "NFCTagSizeTooSmallError":
+          throw NFCTagSizeTooSmallException(e.details["maxSize"] ?? 0);
+        case "NFCUpdateTagError":
+          throw NFCUpdateTagException();
         default:
           throw e;
       }

@@ -102,3 +102,34 @@ class NDEFUnsupportedException implements Exception {
   @override
   String toString() => message;
 }
+
+/// NFCTagNotWritableException is thrown when a non-writable tag is being
+/// written to.
+class NFCTagNotWritableException implements Exception {
+  static const message = "the tag does not support writing";
+
+  @override
+  String toString() => message;
+}
+
+/// NFCTagSizeTooSmallException is thrown when a NDEF message larger than
+/// the tag's maximum size is being written to tag.
+class NFCTagSizeTooSmallException implements Exception {
+  final int maxSize;
+
+  const NFCTagSizeTooSmallException(this.maxSize);
+
+  @override
+  String toString() =>
+      "the new payload exceeds the tag's maximum payload size (maximum $maxSize bytes)";
+}
+
+/// NFCUpdateTagException is thrown when the reader failed to update the tag.
+///
+/// NFCUpdateTagException is only thrown on iOS and is mapped to the [NFCNdefReaderSessionErrorTagUpdateFailure](https://developer.apple.com/documentation/corenfc/nfcreadererror/nfcndefreadersessionerrortagupdatefailure?language=objc) error.
+class NFCUpdateTagException implements Exception {
+  static const message = "failed to update the tag";
+
+  @override
+  String toString() => message;
+}
