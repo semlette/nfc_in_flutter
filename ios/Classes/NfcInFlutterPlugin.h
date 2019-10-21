@@ -1,49 +1,49 @@
 #import <Flutter/Flutter.h>
 #import <CoreNFC/CoreNFC.h>
 
-@protocol NFCWrapper <FlutterStreamHandler>
-- (void)startReading:(BOOL)once;
-- (BOOL)isEnabled;
-- (void)writeToTag:(NSDictionary* _Nonnull)data completionHandler:(void (^_Nonnull) (FlutterError * _Nullable error))completionHandler;
-@end
+@interface NFCDelegate : NSObject<FlutterStreamHandler, NFCNDEFReaderSessionDelegate, NFCTagReaderSessionDelegate>
 
+// MARK: Properties
 
-@interface NfcInFlutterPlugin : NSObject<FlutterPlugin> {
-    FlutterEventSink events;
-    NSObject<NFCWrapper>* wrapper;
-}
-@end
+@property (atomic, retain) FlutterMethodChannel * _Nonnull methodChannel;
+@property (atomic, retain) dispatch_queue_t _Nonnull queue;
+@property (atomic, retain) id<NFCNDEFTag> _Nullable lastNDEFTag API_AVAILABLE(ios(13.0));
+@property (atomic, retain) id<NFCTag> _Nullable lastTag API_AVAILABLE(ios(13.0));
+@property (atomic, copy) FlutterEventSink _Nullable events;
+@property (atomic, retain) NFCNDEFReaderSession * _Nullable ndefSession API_AVAILABLE(ios(11.0));
+@property (atomic, retain) NFCTagReaderSession * _Nullable tagSession API_AVAILABLE(ios(13.0));
 
-API_AVAILABLE(ios(11))
-@interface NFCWrapperBase : NSObject <FlutterStreamHandler> {
-    FlutterEventSink events;
-    NFCNDEFReaderSession* session;
-}
-- (void)readerSession:(nonnull NFCNDEFReaderSession *)session didInvalidateWithError:(nonnull NSError *)error;
+- (instancetype _Nonnull)init:(FlutterMethodChannel * _Nonnull)methodChannel dispatchQueue:(dispatch_queue_t _Nonnull)dispatchQueue;
 
-- (FlutterError * _Nullable)onListenWithArguments:(id _Nullable)arguments eventSink:(nonnull FlutterEventSink)events;
+// MARK: NDEF operations
 
-- (FlutterError * _Nullable)onCancelWithArguments:(id _Nullable)arguments;
+- (BOOL)isNDEFReadingAvailable;
 
-- (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString* _Nonnull)identifier message:(NFCNDEFMessage* _Nonnull)message;
+- (void)beginReadingNDEF:(BOOL)once API_AVAILABLE(ios(11.0));
 
-- (NFCNDEFMessage * _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary* _Nonnull)dictionary;
-@end
+- (void)writeNDEFMessage:(NFCNDEFMessage * _Nonnull)message completionHandler:(void (^ _Nonnull) (FlutterError * _Nullable error))completionHandler API_AVAILABLE(ios(13.0));
 
-API_AVAILABLE(ios(11))
-@interface NFCWrapperImpl : NFCWrapperBase <NFCWrapper, NFCNDEFReaderSessionDelegate> {
-    FlutterMethodChannel* methodChannel;
-    dispatch_queue_t dispatchQueue;
-}
--(id _Nullable )init:(FlutterMethodChannel*_Nonnull)methodChannel dispatchQueue:(dispatch_queue_t _Nonnull )dispatchQueue;
-@end
+- (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString * _Nonnull)identifier message:(NFCNDEFMessage * _Nonnull)message API_AVAILABLE(ios(11.0));
 
-API_AVAILABLE(ios(13))
-@interface NFCWritableWrapperImpl : NFCWrapperImpl
+- (NFCNDEFMessage * _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary * _Nonnull)dictionary API_AVAILABLE(ios(13.0));
 
-@property (atomic, retain) __kindof id<NFCNDEFTag> _Nullable lastTag;
+// MARK: Tag operations
+
+- (BOOL)isTagReadingAvailable;
+
+- (void)beginReadingTags:(BOOL)once API_AVAILABLE(ios(13.0));
+
+- (void)iso7816SendCommand:(NFCISO7816APDU * _Nonnull)command completionHandler:(void (^ _Nonnull) (NSData * _Nullable data, FlutterError * _Nullable error))completionHandler API_AVAILABLE(ios(13.0));
+
+- (void)iso15693ReadBlockRange:(RequestFlag)flag range:(NSRange)range completionHandler:(void (^ _Nonnull) (NSArray<NSData *> * _Nullable dataBlocks, FlutterError * _Nullable error))completionHandler API_AVAILABLE(ios(13.0));
+
+// TODO: Add ISO 15693 'Read Single Block', 'Write Single Block' and 'Write Multiple Blocks' methods
 
 @end
 
-@interface NFCUnsupportedWrapper : NSObject <NFCWrapper>
+@interface NfcInFlutterPlugin : NSObject<FlutterPlugin>
+
+@property (atomic, retain) dispatch_queue_t _Nonnull queue;
+@property (atomic, retain) NFCDelegate * _Nonnull delegate;
+
 @end
