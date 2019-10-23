@@ -1,3 +1,7 @@
+## 2.0.1
+
+-   Fixed writing TNF text records on iOS (credit to GitHub user @janipiippow)
+
 ## 2.0.0
 
 -   Added `noSounds` flag to `NFCNormalReaderMode`
