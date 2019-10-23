@@ -390,7 +390,7 @@
         } else if ([@"well_known" isEqualToString:recordTNF]) {
             if ([@"T" isEqualToString:recordType]) {
                 NSLocale* locale = [NSLocale localeWithLocaleIdentifier:recordLanguageCode];
-                NFCNDEFPayload* ndefRecord = [NFCNDEFPayload wellKnowTypeTextPayloadWithString:recordPayload locale:locale];
+                NFCNDEFPayload* ndefRecord = [NFCNDEFPayload wellKnownTypeTextPayloadWithString:recordPayload locale:locale];
                 [ndefRecords addObject:ndefRecord];
                 continue;
             } else if ([@"U" isEqualToString:recordType]) {
