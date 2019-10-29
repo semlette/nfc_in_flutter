@@ -9,15 +9,15 @@
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {
     dispatch_queue_t dispatchQueue = dispatch_queue_create("me.andisemler.nfc_in_flutter.dispatch_queue", NULL);
     
-    FlutterMethodChannel* channel = [FlutterMethodChannel
+    FlutterMethodChannel *channel = [FlutterMethodChannel
                                      methodChannelWithName:@"nfc_in_flutter"
                                      binaryMessenger:[registrar messenger]];
     
-    FlutterEventChannel* tagChannel = [FlutterEventChannel
+    FlutterEventChannel *tagChannel = [FlutterEventChannel
                                        eventChannelWithName:@"nfc_in_flutter/tags"
                                        binaryMessenger:[registrar messenger]];
     
-    NfcInFlutterPlugin* instance = [[NfcInFlutterPlugin alloc]
+    NfcInFlutterPlugin *instance = [[NfcInFlutterPlugin alloc]
                                     init:dispatchQueue
                                     channel:channel];
   
@@ -37,7 +37,7 @@
     });
 }
     
-- (void)handleMethodCallAsync:(FlutterMethodCall*)call result:(FlutterResult)result {
+- (void)handleMethodCallAsync:(FlutterMethodCall * _Nonnull)call result:(FlutterResult)result {
     if ([@"readNDEFSupported" isEqualToString:call.method]) {
         result([NSNumber numberWithBool:[delegate isNDEFReadingAvailable]]);
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
@@ -113,7 +113,6 @@
             }
             // Get the tag's read/write status
             [self->lastNDEFTag queryNDEFStatusWithCompletionHandler:^(NFCNDEFStatus status, NSUInteger capacity, NSError * _Nullable error) {
-                
                 if (error != nil) {
                     completionHandler([FlutterError errorWithCode:@"NFCUnexpectedError" message:error.localizedDescription details:nil]);
                     return;
@@ -175,7 +174,7 @@
     //   ]
     // }
     for (NFCNDEFMessage* message in messages) {
-        NSDictionary* result = [self formatMessageWithIdentifier:@"" message:message];
+        NSDictionary *result = [self formatMessageWithIdentifier:@"" message:message];
         dispatch_async(dispatch_get_main_queue(), ^{
             if (self->events != nil) {
                self->events(result);
@@ -205,7 +204,6 @@
                 return;
             }
             [tag readNDEFWithCompletionHandler:^(NFCNDEFMessage * _Nullable message, NSError * _Nullable error) {
-                
                 if (error != nil) {
                     NSLog(@"ERROR: %@", error.localizedDescription);
                     return;
@@ -233,7 +231,7 @@
     if (events == nil) {
         return;
     }
-    switch ([error code]) {
+    switch (error.code) {
         case NFCReaderSessionInvalidationErrorFirstNDEFTagRead:
             // When this error is returned it doesn't need to be sent to the client
             // as it cancels the stream after 1 read anyways
@@ -490,7 +488,7 @@
     return result;
 }
 
-- (NFCNDEFMessage * _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary* _Nonnull)dictionary API_AVAILABLE(ios(13.0)) {
+- (NFCNDEFMessage * _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary * _Nonnull)dictionary API_AVAILABLE(ios(13.0)) {
     NSMutableArray<NFCNDEFPayload *> *ndefRecords = [[NSMutableArray alloc] init];
     
     NSDictionary *message = [dictionary valueForKey:@"message"];
@@ -524,7 +522,7 @@
         
         if ([@"empty" isEqualToString:recordTNF]) {
             // Empty records are not allowed to have a ID, type or payload.
-            NFCNDEFPayload *ndefRecord = [[NFCNDEFPayload alloc] initWithFormat:NFCTypeNameFormatEmpty type:[[NSData alloc] init] identifier:[[NSData alloc] init] payload:[[NSData alloc] init]];
+            NFCNDEFPayload *ndefRecord = [[NFCNDEFPayload alloc] initWithFormat:NFCTypeNameFormatEmpty type:[NSData data] identifier:[NSData data] payload:[NSData data]];
             [ndefRecords addObject:ndefRecord];
             continue;
         } else if ([@"well_known" isEqualToString:recordTNF]) {
