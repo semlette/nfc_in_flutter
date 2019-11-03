@@ -15,7 +15,19 @@ class NFC {
 
   static void _createTagStream() {
     _tagStream = _eventChannel.receiveBroadcastStream().where((tag) {
-      // In the future when more tag types are supported, this must be changed.
+      assert(tag is Map);
+      switch (tag["message_type"]) {
+        case "ndef":
+        case "isodep":
+          return true;
+        default:
+          return false;
+      }
+    });
+  }
+
+  static Stream<NDEFMessage> _streamWithNDEFMessages(Stream stream) {
+    return stream.where((tag) {
       assert(tag is Map);
       return tag["message_type"] == "ndef";
     }).map<NFCMessage>((tag) {
@@ -91,11 +103,12 @@ class NFC {
     if (_tagStream == null) {
       _createTagStream();
     }
+    Stream<NDEFMessage> ndefTagStream = _streamWithNDEFMessages(_tagStream);
     // Create a StreamController to wrap the tag stream. Any errors will be
     // converted to their matching exception classes. The controller stream will
     // be closed if the errors are fatal.
     StreamController<NDEFMessage> controller = StreamController();
-    final stream = once ? _tagStream.take(1) : _tagStream;
+    final stream = once ? ndefTagStream.take(1) : ndefTagStream;
     // Listen for tag reads.
     final subscription = stream.listen((message) {
       controller.add(message);
@@ -219,12 +232,16 @@ class NFC {
     return supported as bool;
   }
 
-  static Future<void> readNFCIsoDep() async => await _channel.invokeMethod("startISODepReading");
-  static Future<void> setTimeOutIsoDep( final int timeout ) async => await _channel.invokeMethod("setTimeOutIsoDep", { "timeout": timeout });
-  static Future<void> connectISODep() async => await _channel.invokeMethod("connectISODep");
-  static Future<void> closeISODep() async => await _channel.invokeMethod("closeISODep");
-  static Future<Uint8List> transceiveIsoDep( Uint8List data ) async => await _channel.invokeMethod("transceiveIsoDep", { "data": data } );
-  
+  static Future<void> readNFCIsoDep() async =>
+      await _channel.invokeMethod("startISODepReading");
+  static Future<void> setTimeOutIsoDep(final int timeout) async =>
+      await _channel.invokeMethod("setTimeOutIsoDep", {"timeout": timeout});
+  static Future<void> connectISODep() async =>
+      await _channel.invokeMethod("connectISODep");
+  static Future<void> closeISODep() async =>
+      await _channel.invokeMethod("closeISODep");
+  static Future<Uint8List> transceiveIsoDep(Uint8List data) async =>
+      await _channel.invokeMethod("transceiveIsoDep", {"data": data});
 }
 
 /// NFCReaderMode is an interface for different reading modes

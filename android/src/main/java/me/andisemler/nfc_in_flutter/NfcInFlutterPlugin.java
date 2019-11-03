@@ -11,6 +11,7 @@ import android.nfc.Tag;
 import android.nfc.tech.IsoDep;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.NdefFormatable;
+import android.nfc.tech.TagTechnology;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -53,6 +54,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
     private NfcAdapter adapter;
     private EventChannel.EventSink events;
 
+    private List<Class<? extends TagTechnology>> preferredTechnologies = null;
     private String currentReaderMode = null;
     private Tag lastTag = null;
 
@@ -79,6 +81,8 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 result.success(nfcIsEnabled());
                 break;
             case "startNDEFReading":
+                preferredTechnologies = new ArrayList<>();
+                preferredTechnologies.add(Ndef.class);
                 if (!(call.arguments instanceof HashMap)) {
                     result.error("MissingArguments", "startNDEFReading was called with no arguments", "");
                     return;
@@ -132,6 +136,8 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 break;
             case "startISODepReading":
                 Log.d("isodep", "start reading");
+                preferredTechnologies = new ArrayList<>();
+                preferredTechnologies.add(IsoDep.class);
                 startReadingISODep(result);
                 break;
             case "connectISODep":
@@ -258,46 +264,64 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 Log.e(LOG_TAG, "unknown reader mode: " + currentReaderMode);
         }
         events = null;
+        preferredTechnologies = null;
+    }
+
+    private boolean isPreferredTechnology(TagTechnology technology) {
+        if (preferredTechnologies == null) {
+            return false;
+        }
+        for (Class<? extends TagTechnology> preferredTechnology : preferredTechnologies) {
+            if (preferredTechnology.isInstance(technology)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public void onTagDiscovered(Tag tag) {
         lastTag = tag;
+
         Ndef ndef = Ndef.get(tag);
-        if (ndef == null) {
-            // tag is not in NDEF format; skip!
-            return;
-        }
-        boolean closed = false;
-        try {
-            ndef.connect();
-            NdefMessage message = ndef.getNdefMessage();
-            if (message == null) {
-                return;
-            }
+        IsoDep isoDep = IsoDep.get(tag);
+
+        if (isPreferredTechnology(ndef)) {
+            boolean closed = false;
             try {
-                ndef.close();
-                closed = true;
-            } catch (IOException e) {
-                Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
-            }
-            eventSuccess(formatNDEFMessageToResult(ndef, message));
-        } catch (IOException e) {
-            Map<String, Object> details = new HashMap<>();
-            details.put("fatal", true);
-            eventError("IOError", e.getMessage(), details);
-        } catch (FormatException e) {
-            eventError("NDEFBadFormatError", e.getMessage(), null);
-        } finally {
-            // Close if the tag connection if it isn't already
-            if (!closed) {
+                ndef.connect();
+                NdefMessage message = ndef.getNdefMessage();
+                if (message == null) {
+                    return;
+                }
                 try {
                     ndef.close();
+                    closed = true;
                 } catch (IOException e) {
                     Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
                 }
+                eventSuccess(formatNDEFMessageToResult(ndef, message));
+            } catch (IOException e) {
+                Map<String, Object> details = new HashMap<>();
+                details.put("fatal", true);
+                eventError("IOError", e.getMessage(), details);
+            } catch (FormatException e) {
+                eventError("NDEFBadFormatError", e.getMessage(), null);
+            } finally {
+                // Close if the tag connection if it isn't already
+                if (!closed) {
+                    try {
+                        ndef.close();
+                    } catch (IOException e) {
+                        Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
+                    }
+                }
             }
+        } else if (isPreferredTechnology(isoDep)) {
+
         }
+
+        // the tag does not support any wanted technologies; skip!
     }
 
     @Override
