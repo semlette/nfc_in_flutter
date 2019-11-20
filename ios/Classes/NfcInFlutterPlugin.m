@@ -282,6 +282,8 @@
                 case 0x23:
                     url = @"urn:nfc:";
                     break;
+                default:
+                    url = @"";
             }
             // Remove the first byte from and add the URL prefix to the payload
             NSString* trimmedPayload = [[NSString alloc] initWithData:
