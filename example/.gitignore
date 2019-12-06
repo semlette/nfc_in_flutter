@@ -1,3 +1,5 @@
+ios/Flutter/flutter_export_environment.sh
+
 # Miscellaneous
 *.class
 *.log
