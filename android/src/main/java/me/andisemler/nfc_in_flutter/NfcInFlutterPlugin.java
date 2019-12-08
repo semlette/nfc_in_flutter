@@ -488,10 +488,9 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                         // The following code basically constructs a text record like NdefRecord.createTextRecord() does,
                         // however NdefRecord.createTextRecord() is only available in SDK 21+ while nfc_in_flutter
                         // goes down to SDK 19.
-                        ByteBuffer buffer = ByteBuffer.allocate(1 + languageCodeBytes.length + payloadBytes.length);
+                        ByteBuffer buffer = ByteBuffer.allocate(1 + payloadBytes.length);
                         byte status = (byte) (languageCode.length() & 0xFF);
                         buffer.put(status);
-                        buffer.put(languageCode.getBytes());
                         buffer.put(payloadBytes);
                         payloadBytes = buffer.array();
                     } else if (Arrays.equals(typeBytes, NdefRecord.RTD_URI)) {
