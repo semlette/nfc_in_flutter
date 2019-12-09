@@ -372,7 +372,7 @@ class NDEFRecord {
         tnf = NFCTypeNameFormat.mime_media,
         languageCode = null;
 
-  NDEFRecord.text(String message, {String languageCode = "en"})
+  NDEFRecord.text(String message, {languageCode = "en"})
       : id = null,
         data = message,
         payload = languageCode + message,
@@ -444,7 +444,6 @@ class NDEFRecord {
       "payload": payload ?? "",
       "type": type ?? "",
       "tnf": tnf ?? "unknown",
-      "languageCode": languageCode,
     };
   }
 }
