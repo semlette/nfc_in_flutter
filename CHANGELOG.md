@@ -1,3 +1,7 @@
+## 2.0.3
+
+-   Fixed `NDEFRecord.languageCode` being ignored when writing
+
 ## 2.0.2
 
 -   Fixed a crash when reading tags containing records with a custom url protocol and well known type URL
