@@ -375,7 +375,7 @@ class NDEFRecord {
   NDEFRecord.text(String message, {languageCode = "en"})
       : id = null,
         data = message,
-        payload = languageCode + message,
+        payload = message,
         type = "T",
         tnf = NFCTypeNameFormat.well_known,
         this.languageCode = languageCode;
@@ -444,6 +444,7 @@ class NDEFRecord {
       "payload": payload ?? "",
       "type": type ?? "",
       "tnf": tnf ?? "unknown",
+      "languageCode": languageCode,
     };
   }
 }
