@@ -195,6 +195,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             ndef.connect();
             NdefMessage message = ndef.getNdefMessage();
             if (message == null) {
+                eventSuccess(formatEmptyNDEFMessage(ndef));
                 return;
             }
             try {
@@ -248,6 +249,25 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         }
         Map result = formatNDEFMessageToResult(ndef, message);
         eventSuccess(result);
+    }
+
+    private Map<String, Object> formatEmptyNDEFMessage(Ndef ndef) {
+        final Map<String, Object> result = new HashMap<>();
+        result.put("id", "");
+        result.put("message_type", "ndef");
+        result.put("type", "");
+        result.put("writable", ndef.isWritable());
+        List<Map<String, String>> records = new ArrayList<>();
+        Map<String, String> emptyRecord = new HashMap<>();
+        emptyRecord.put("tnf", "empty");
+        emptyRecord.put("id", "");
+        emptyRecord.put("type", "");
+        emptyRecord.put("payload", "");
+        emptyRecord.put("data", "");
+        emptyRecord.put("languageCode", "");
+        records.add(emptyRecord);
+        result.put("records", records);
+        return result;
     }
 
     private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) {
