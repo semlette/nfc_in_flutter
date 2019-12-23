@@ -299,6 +299,16 @@ class NDEFMessage implements NFCMessage {
     return null;
   }
 
+  bool get isEmpty {
+    if (records.length == 0) {
+      return true;
+    }
+    if (records.length == 1 && records[0].tnf == NFCTypeNameFormat.empty) {
+      return true;
+    }
+    return false;
+  }
+
   // data returns the contents of the first non-empty record. If all records
   // are empty it will return null.
   String get data {
