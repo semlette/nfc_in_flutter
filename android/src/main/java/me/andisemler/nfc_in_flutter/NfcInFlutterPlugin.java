@@ -235,6 +235,13 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         return false;
     }
 
+    private String getNDEFTagID(Ndef ndef) {
+        byte[] idByteArray = ndef.getTag().getId();
+        // Fancy string formatting snippet is from
+        // https://gist.github.com/luixal/5768921#gistcomment-1788815
+        return String.format("%0" + (idByteArray.length * 2) + "X", new BigInteger(1, idByteArray));
+    }
+
     private void handleNDEFTagFromIntent(Tag tag) {
         Ndef ndef = Ndef.get(tag);
         if (ndef == null) {
@@ -253,7 +260,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     private Map<String, Object> formatEmptyNDEFMessage(Ndef ndef) {
         final Map<String, Object> result = new HashMap<>();
-        result.put("id", "");
+        result.put("id", getNDEFTagID(ndef));
         result.put("message_type", "ndef");
         result.put("type", "");
         result.put("writable", ndef.isWritable());
@@ -439,10 +446,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             recordMap.put("tnf", tnfValue);
             records.add(recordMap);
         }
-        byte[] idByteArray = ndef.getTag().getId();
-        // Fancy string formatting snippet is from
-        // https://gist.github.com/luixal/5768921#gistcomment-1788815
-        result.put("id", String.format("%0" + (idByteArray.length * 2) + "X", new BigInteger(1, idByteArray)));
+        result.put("id", getNDEFTagID(ndef));
         result.put("message_type", "ndef");
         result.put("type", ndef.getType());
         result.put("records", records);
