@@ -46,7 +46,7 @@
         result([NSNumber numberWithBool:[wrapper isEnabled]]);
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
         NSDictionary* args = call.arguments;
-        [wrapper startReading:[args[@"scan_once"] boolValue]];
+        [wrapper startReading:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
         result(nil);
     } else if ([@"writeNDEF" isEqualToString:call.method]) {
         NSDictionary* args = call.arguments;
@@ -435,9 +435,10 @@
     return self;
 }
     
-- (void)startReading:(BOOL)once {
+- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage {
     if (session == nil) {
         session = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:dispatchQueue invalidateAfterFirstRead: once];
+        session.alertMessage = alertMessage;
     }
     [self->session beginSession];
 }
@@ -598,7 +599,7 @@
     // https://knowyourmeme.com/photos/1483348-bugs-bunnys-no
     return NO;
 }
-- (void)startReading:(BOOL)once {
+- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage {
     return;
 }
 
