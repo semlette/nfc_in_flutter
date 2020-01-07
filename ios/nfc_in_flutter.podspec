@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
   s.source_files = 'Classes/**/*'
   s.public_header_files = 'Classes/**/*.h'
   s.dependency 'Flutter'
-  s.frameworks = ['CoreNFC']
+  s.weak_frameworks = ['CoreNFC']
 
   s.ios.deployment_target = '8.0'
 end
