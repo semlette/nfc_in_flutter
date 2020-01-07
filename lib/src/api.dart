@@ -60,10 +60,11 @@ class NFC {
     });
   }
 
-  static void _startReadingNDEF(bool once, NFCReaderMode readerMode) {
+  static void _startReadingNDEF(bool once, String message, NFCReaderMode readerMode) {
     // Start reading
     Map arguments = {
       "scan_once": once,
+      "alert_message": message,
       "reader_mode": readerMode.name,
     }..addAll(readerMode._options);
     _channel.invokeMethod("startNDEFReading", arguments);
@@ -80,6 +81,12 @@ class NFC {
       /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
       /// should be thrown on iOS when the user clicks Cancel/Done.
       bool throwOnUserCancel = true,
+
+      /// message specify the message shown to the user when the NFC modal is
+      /// open
+      ///
+      /// This is ignored on Android as it does not have NFC modal
+      String message = "",
 
       /// readerMode specifies which mode the reader should use. By default it
       /// will use the normal mode, which scans for tags normally without
@@ -145,7 +152,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, const NFCNormalReaderMode());
+      _startReadingNDEF(once, message, const NFCNormalReaderMode());
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
@@ -165,6 +172,12 @@ class NFC {
 
       /// once will stop reading after the first tag has been read.
       bool once = false,
+
+      /// message specify the message shown to the user when the NFC modal is
+      /// open
+      ///
+      /// This is ignored on Android as it does not have NFC modal
+      String message = "",
 
       /// readerMode specifies which mode the reader should use.
       NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
@@ -200,7 +213,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, readerMode);
+      _startReadingNDEF(once, message, readerMode);
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
