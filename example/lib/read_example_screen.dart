@@ -24,9 +24,11 @@ class _ReadExampleScreenState extends State<ReadExampleScreen> {
 
   void _stopScanning() {
     _stream?.cancel();
-    setState(() {
-      _stream = null;
-    });
+    if (mounted) {
+      setState(() {
+        _stream = null;
+      });
+    }
   }
 
   void _toggleScan() {

@@ -1,36 +1,14 @@
 import 'dart:async';
-import 'dart:core';
-import 'dart:typed_data';
-
+import './core.dart';
+import './exceptions.dart';
 import 'package:flutter/services.dart';
 
-import './exceptions.dart';
-
 class NFC {
-  static MethodChannel _channel = MethodChannel("nfc_in_flutter");
-  static const EventChannel _eventChannel =
-      const EventChannel("nfc_in_flutter/tags");
-
-  static Stream<dynamic> _tagStream;
-
-  static void _createTagStream() {
-    _tagStream = _eventChannel.receiveBroadcastStream().where((tag) {
-      assert(tag is Map);
-      switch (tag["message_type"]) {
-        case "ndef":
-        case "isodep":
-          return true;
-        default:
-          return false;
-      }
-    });
-  }
-
   static Stream<NDEFMessage> _streamWithNDEFMessages(Stream stream) {
     return stream.where((tag) {
       assert(tag is Map);
       return tag["message_type"] == "ndef";
-    }).map<NFCMessage>((tag) {
+    }).map<NDEFMessage>((tag) {
       assert(tag is Map);
 
       List<NDEFRecord> records = [];
@@ -78,8 +56,8 @@ class NFC {
     Map arguments = {
       "scan_once": once,
       "reader_mode": readerMode.name,
-    }..addAll(readerMode._options);
-    _channel.invokeMethod("startNDEFReading", arguments);
+    }..addAll(readerMode.options);
+    Core.channel.invokeMethod("startNDEFReading", arguments);
   }
 
   /// readNDEF starts listening for NDEF formatted tags. Any non-NDEF formatted
@@ -100,74 +78,11 @@ class NFC {
       ///
       /// This is ignored on iOS as it only has one reading mode.
       NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
-    if (_tagStream == null) {
-      _createTagStream();
-    }
-    Stream<NDEFMessage> ndefTagStream = _streamWithNDEFMessages(_tagStream);
-    // Create a StreamController to wrap the tag stream. Any errors will be
-    // converted to their matching exception classes. The controller stream will
-    // be closed if the errors are fatal.
-    StreamController<NDEFMessage> controller = StreamController();
-    final stream = once ? ndefTagStream.take(1) : ndefTagStream;
-    // Listen for tag reads.
-    final subscription = stream.listen((message) {
-      controller.add(message);
-    }, onError: (error) {
-      if (error is PlatformException) {
-        switch (error.code) {
-          case "NDEFUnsupportedFeatureError":
-            controller.addError(NDEFReadingUnsupportedException());
-            controller.close();
-            return;
-          case "UserCanceledSessionError":
-            if (throwOnUserCancel)
-              controller.addError(NFCUserCanceledSessionException());
-            controller.close();
-            return;
-          case "SessionTimeoutError":
-            controller.addError(NFCSessionTimeoutException());
-            controller.close();
-            return;
-          case "SessionTerminatedUnexpectedlyErorr":
-            controller.addError(
-                NFCSessionTerminatedUnexpectedlyException(error.message));
-            controller.close();
-            return;
-          case "SystemIsBusyError":
-            controller.addError(NFCSystemIsBusyException(error.message));
-            controller.close();
-            return;
-          case "IOError":
-            controller.addError(NFCIOException(error.message));
-            if (error.details != null) {
-              assert(error.details is Map);
-              if (error.details["fatal"] == true) controller.close();
-            }
-            return;
-          case "NDEFBadFormatError":
-            controller.addError(NDEFBadFormatException(error.message));
-            return;
-        }
-      }
-      controller.addError(error);
-    }, onDone: () {
-      _tagStream = null;
-      return controller.close();
-    });
-    controller.onCancel = () {
-      subscription.cancel();
-    };
-
-    try {
-      _startReadingNDEF(once, const NFCNormalReaderMode());
-    } on PlatformException catch (err) {
-      if (err.code == "NFCMultipleReaderModes") {
-        throw NFCMultipleReaderModesException();
-      }
-      throw err;
-    }
-
-    return controller.stream;
+    return Core.startReading(
+      (stream) => _streamWithNDEFMessages(stream),
+      () => _startReadingNDEF(once, readerMode),
+      once: once,
+    );
   }
 
   /// writeNDEF will write [newMessage] to all NDEF compatible tags scanned while
@@ -182,14 +97,14 @@ class NFC {
 
       /// readerMode specifies which mode the reader should use.
       NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
-    if (_tagStream == null) {
-      _createTagStream();
+    if (Core.tagStream == null) {
+      Core.createTagStream();
     }
 
     StreamController<NDEFTag> controller = StreamController();
 
     int writes = 0;
-    StreamSubscription<NFCMessage> stream = _tagStream.listen((msg) async {
+    StreamSubscription<NFCMessage> stream = Core.tagStream.listen((msg) async {
       NDEFMessage message = msg;
       if (message.tag.writable) {
         try {
@@ -206,7 +121,7 @@ class NFC {
         controller.close();
       }
     }, onDone: () {
-      _tagStream = null;
+      Core.tagStream = null;
       return controller.close();
     });
     controller.onCancel = () {
@@ -227,21 +142,10 @@ class NFC {
 
   /// isNDEFSupported checks if the device supports reading NDEF tags
   static Future<bool> get isNDEFSupported async {
-    final supported = await _channel.invokeMethod("readNDEFSupported");
+    final supported = await Core.channel.invokeMethod("readNDEFSupported");
     assert(supported is bool);
     return supported as bool;
   }
-
-  static Future<void> readNFCIsoDep() async =>
-      await _channel.invokeMethod("startISODepReading");
-  static Future<void> setTimeOutIsoDep(final int timeout) async =>
-      await _channel.invokeMethod("setTimeOutIsoDep", {"timeout": timeout});
-  static Future<void> connectISODep() async =>
-      await _channel.invokeMethod("connectISODep");
-  static Future<void> closeISODep() async =>
-      await _channel.invokeMethod("closeISODep");
-  static Future<Uint8List> transceiveIsoDep(Uint8List data) async =>
-      await _channel.invokeMethod("transceiveIsoDep", {"data": data});
 }
 
 /// NFCReaderMode is an interface for different reading modes
@@ -250,7 +154,7 @@ class NFC {
 abstract class NFCReaderMode {
   String get name;
 
-  Map get _options;
+  Map get options;
 }
 
 /// NFCNormalReaderMode uses the platform's normal reading mode. This does not
@@ -268,7 +172,7 @@ class NFCNormalReaderMode implements NFCReaderMode {
   });
 
   @override
-  Map get _options {
+  Map get options {
     return {
       "no_platform_sounds": noSounds,
     };
@@ -281,7 +185,7 @@ class NFCDispatchReaderMode implements NFCReaderMode {
   String get name => "dispatch";
 
   @override
-  Map get _options {
+  Map get options {
     return {};
   }
 }
@@ -490,7 +394,7 @@ class NDEFTag implements NFCTag {
       throw NFCTagUnwritableException();
     }
     try {
-      return NFC._channel.invokeMethod("writeNDEF", {
+      return Core.channel.invokeMethod("writeNDEF", {
         "id": id,
         "message": message._toMap(),
       });

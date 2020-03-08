@@ -11,6 +11,7 @@ import android.nfc.Tag;
 import android.nfc.tech.IsoDep;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.NdefFormatable;
+import android.nfc.tech.NfcA;
 import android.nfc.tech.TagTechnology;
 import android.os.Bundle;
 import android.os.Handler;
@@ -50,7 +51,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
     private static final String LOG_TAG = "NfcInFlutterPlugin";
 
     private final Activity activity;
-    private IsoDep iso_dep;
     private NfcAdapter adapter;
     private EventChannel.EventSink events;
 
@@ -81,16 +81,28 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 result.success(nfcIsEnabled());
                 break;
             case "startNDEFReading":
+            case "android.startNFCAReading":
+            case "android.startIsoDepReading":
                 preferredTechnologies = new ArrayList<>();
-                preferredTechnologies.add(Ndef.class);
+                switch (call.method) {
+                    case "startNDEFReading":
+                        preferredTechnologies.add(Ndef.class);
+                        break;
+                    case "android.startNFCAReading":
+                        preferredTechnologies.add(NfcA.class);
+                        break;
+                    case "android.startIsoDepReading":
+                        preferredTechnologies.add(IsoDep.class);
+                        break;
+                }
                 if (!(call.arguments instanceof HashMap)) {
-                    result.error("MissingArguments", "startNDEFReading was called with no arguments", "");
+                    result.error("MissingArguments", call.method+" was called with no arguments", "");
                     return;
                 }
                 HashMap args = (HashMap) call.arguments;
                 String readerMode = (String) args.get("reader_mode");
                 if (readerMode == null) {
-                    result.error("MissingReaderMode", "startNDEFReading was called without a reader mode", "");
+                    result.error("MissingReaderMode", call.method+" was called without a reader mode", "");
                     return;
                 }
 
@@ -134,87 +146,33 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                     result.error(e.code, e.message, e.details);
                 }
                 break;
-            case "startISODepReading":
-                Log.d("isodep", "start reading");
-                preferredTechnologies = new ArrayList<>();
-                preferredTechnologies.add(IsoDep.class);
-                startReadingISODep(result);
+            case "android.connectNFCA":
+                try {
+                    connectNFCA();
+                    result.success(null);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
                 break;
-            case "connectISODep":
-                connectIsoDep(result);
+            case "android.closeNFCA":
+                try {
+                    closeNFCA();
+                    result.success(null);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
                 break;
-            case "closeISODep":
-                closeIsoDep(result);
-                break;
-            case "setTimeOutIsoDep":
-                setTimeOutIsoDep(call, result);
-                break;
-            case "transceiveIsoDep":
-                transceiveIsoDep(call, result);
+            case "android.transceiveNFCA":
+                try {
+                    transceiveNFCA(); // TODO
+                    result.success(null);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
                 break;
             default:
                 result.notImplemented();
         }
-    }
-
-    private void startReadingISODep( final Result result ) {
-        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(activity);
-        if (adapter == null) return;
-        Bundle bundle = new Bundle();
-        int DEFAULT_READER_FLAGS = NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_NFC_B | NfcAdapter.FLAG_READER_NFC_F | NfcAdapter.FLAG_READER_NFC_V;
-        adapter.enableReaderMode(activity, new NfcAdapter.ReaderCallback() {
-            @Override
-            public void onTagDiscovered(Tag tag) {
-                Log.d("tag", tag.toString() );
-                IsoDep new_iso_dep = IsoDep.get(tag);
-                if ( new_iso_dep == null ) return;
-                iso_dep = new_iso_dep;
-                eventSuccess(result, null);
-                Log.d("tag", "event success" );
-            }
-        }, DEFAULT_READER_FLAGS, bundle);
-    }
-
-    private void connectIsoDep( final Result result ) {
-        try {
-            iso_dep.connect();
-            eventSuccess(result,null);
-        } catch (IOException e) {
-            eventError( result, e.getMessage(), e.getLocalizedMessage(), e.getStackTrace());
-        }
-    }
-
-    private void closeIsoDep( final Result result ) {
-        try {
-            iso_dep.close();
-            eventSuccess(result,null);
-        } catch (IOException e) {
-            eventError( result, e.getMessage(), e.getLocalizedMessage(), e.getStackTrace());
-        }
-    }
-
-    private void setTimeOutIsoDep( final MethodCall call, final Result result ) {
-        if ( !call.hasArgument("timeout") ) {
-            eventError( result,"timeout must be provided", null, null);
-            return;
-        }
-        iso_dep.setTimeout( (int)call.argument("timeout") );
-        eventSuccess( result, null);
-    }
-
-    private void transceiveIsoDep(final MethodCall call, final Result result ) {
-        if ( !call.hasArgument("data") ) {
-            eventError(result,"To transceive data must be provided", null, null);
-            return;
-        }
-        final byte[] data = call.argument("data");
-        try {
-            final byte[] response = iso_dep.transceive(data);
-            eventSuccess( result, response );
-        } catch (IOException e) {
-            eventError( result, e.getMessage(), e.getLocalizedMessage(), e.getStackTrace() );
-        }
-
     }
 
     private Boolean nfcIsEnabled() {
@@ -285,6 +243,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
         Ndef ndef = Ndef.get(tag);
         IsoDep isoDep = IsoDep.get(tag);
+        NfcA nfcA = NfcA.get(tag);
 
         if (isPreferredTechnology(ndef)) {
             boolean closed = false;
@@ -319,6 +278,15 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             }
         } else if (isPreferredTechnology(isoDep)) {
 
+        } else if (isPreferredTechnology(nfcA)) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("message_type", "nfca");
+            result.put("atqa", nfcA.getAtqa());
+            result.put("max_transceive_length", nfcA.getMaxTransceiveLength());
+            result.put("sak", nfcA.getSak());
+            result.put("is_connected", nfcA.isConnected());
+            result.put("timeout", nfcA.getTimeout());
+            eventSuccess(result);
         }
 
         // the tag does not support any wanted technologies; skip!
@@ -332,6 +300,10 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             lastTag = tag;
             handleNDEFTagFromIntent(tag);
             return true;
+        } else if (NfcAdapter.ACTION_TAG_DISCOVERED.equals(action)) {
+            // TODO
+        } else if (NfcAdapter.ACTION_TECH_DISCOVERED.equals(action)) {
+            // TODO
         }
         return false;
     }
@@ -682,9 +654,48 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         }
     }
 
+    private void connectNFCA() throws NfcInFlutterException {
+        NfcA tag = NfcA.get(lastTag);
+        if (tag == null) {
+            throw new NfcInFlutterException("TagNotNFCA", "the last tag scanned does not support the NFCA technology", null);
+        }
+
+        try {
+            tag.connect();
+        } catch (IOException e) {
+            throw new NfcInFlutterException("IOError", e.getMessage(), null);
+        }
+    }
+
+    private void closeNFCA() throws NfcInFlutterException {
+        NfcA tag = NfcA.get(lastTag);
+        if (tag == null) {
+            throw new NfcInFlutterException("TagNotNFCA", "the last tag scanned does not support the NFCA technology", null);
+        }
+
+        try {
+            tag.close();
+        } catch (IOException e) {
+            throw new NfcInFlutterException("IOError", e.getMessage(), null);
+        }
+    }
+
+    private void transceiveNFCA() throws NfcInFlutterException {
+        NfcA tag = NfcA.get(lastTag);
+        if (tag == null) {
+            throw new NfcInFlutterException("TagNotNFCA", "the last tag scanned does not support the NFCA technology", null);
+        }
+
+        try {
+            byte[] data = {}; // TODO
+            tag.transceive(data);
+        } catch (IOException e) {
+            throw new NfcInFlutterException("IOError", e.getMessage(), null);
+        }
+    }
+
     private void eventSuccess(final Object result) {
-        Handler mainThread = new Handler(activity.getMainLooper());
-        Runnable runnable = new Runnable() {
+        activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 if (events != null) {
@@ -692,38 +703,17 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                     events.success(result);
                 }
             }
-        };
-        mainThread.post(runnable);
+        });
     }
 
     private void eventError(final String code, final String message, final Object details) {
-        Handler mainThread = new Handler(activity.getMainLooper());
-        Runnable runnable = new Runnable() {
+        activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 if (events != null) {
                     // Event stream must be handled on main/ui thread
                     events.error(code, message, details);
                 }
-            }
-        };
-        mainThread.post(runnable);
-    }
-    
-    private void eventSuccess(final Result result, final Object parameter) {
-        activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                result.success(parameter);
-            }
-        });
-    }
-    
-    private void eventError( final Result result, final String code, final String message, final Object details) {
-        activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                result.error(code, message, details);
             }
         });
     }

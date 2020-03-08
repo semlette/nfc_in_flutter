@@ -5,6 +5,7 @@ import 'package:nfc_in_flutter/nfc_in_flutter.dart';
 
 import './read_example_screen.dart';
 import './write_example_screen.dart';
+import './read_nfca_example_screen.dart';
 
 void main() => runApp(ExampleApp());
 
@@ -31,6 +32,12 @@ class ExampleApp extends StatelessWidget {
                   Navigator.pushNamed(context, "/write_example");
                 },
               ),
+              ListTile(
+                title: const Text("Read NFC-A"),
+                onTap: () {
+                  Navigator.pushNamed(context, "/read_nfca_example");
+                },
+              ),
             ],
           );
         }),
@@ -38,6 +45,7 @@ class ExampleApp extends StatelessWidget {
       routes: {
         "/read_example": (context) => ReadExampleScreen(),
         "/write_example": (context) => WriteExampleScreen(),
+        "/read_nfca_example": (context) => ReadNFCAExampleScreen(),
       },
     );
   }
