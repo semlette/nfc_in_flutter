@@ -164,7 +164,51 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 break;
             case "android.transceiveNFCA":
                 try {
-                    transceiveNFCA(); // TODO
+                    byte[] data = call.arguments();
+                    byte[] transceiveResult = transceiveNFCA(data);
+                    result.success(transceiveResult);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
+                break;
+            case "android.setNFCATimeout":
+                try {
+                    int timeout = call.arguments();
+                    setNFCATimeout(timeout);
+                    result.success(null);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
+                break;
+            case "android.connectIsoDep":
+                try {
+                    connectIsoDep();
+                    result.success(null);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
+                break;
+            case "android.closeIsoDep":
+                try {
+                    closeIsoDep();
+                    result.success(null);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
+                break;
+            case "android.transceiveIsoDep":
+                try {
+                    byte[] data = call.arguments();
+                    byte[] transceiveResult = transceiveIsoDep(data); // TODO
+                    result.success(transceiveResult);
+                } catch (NfcInFlutterException e) {
+                    result.error(e.code, e.message, e.details);
+                }
+                break;
+            case "android.setIsoDepTimeout":
+                try {
+                    int timeout = call.arguments();
+                    setIsoDepTimeout(timeout);
                     result.success(null);
                 } catch (NfcInFlutterException e) {
                     result.error(e.code, e.message, e.details);
@@ -277,19 +321,36 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                 }
             }
         } else if (isPreferredTechnology(isoDep)) {
-
+            Map<String, Object> result = new HashMap<>();
+            result.put("message_type", "isodep");
+            formatNfcAForResult(nfcA, result);
+            formatIsoDepForResult(isoDep, result);
+            eventSuccess(result);
         } else if (isPreferredTechnology(nfcA)) {
             Map<String, Object> result = new HashMap<>();
             result.put("message_type", "nfca");
-            result.put("atqa", nfcA.getAtqa());
-            result.put("max_transceive_length", nfcA.getMaxTransceiveLength());
-            result.put("sak", nfcA.getSak());
-            result.put("is_connected", nfcA.isConnected());
-            result.put("timeout", nfcA.getTimeout());
+            formatNfcAForResult(nfcA, result);
             eventSuccess(result);
         }
 
         // the tag does not support any wanted technologies; skip!
+    }
+
+    private void formatIsoDepForResult(IsoDep isoDep, Map<String, Object> result) {
+        result.put("timeout", isoDep.getTimeout());
+        result.put("max_transceive_length", isoDep.getMaxTransceiveLength());
+        result.put("hi_layer_response", isoDep.getHiLayerResponse());
+        result.put("historical_bytes", isoDep.getHistoricalBytes());
+        result.put("is_extended_length_apdu_supported", isoDep.isExtendedLengthApduSupported());
+        result.put("is_connected", isoDep.isConnected());
+    }
+
+    private void formatNfcAForResult(NfcA nfcA, Map<String, Object> result) {
+        result.put("atqa", nfcA.getAtqa());
+        result.put("max_transceive_length", nfcA.getMaxTransceiveLength());
+        result.put("sak", nfcA.getSak());
+        result.put("is_connected", nfcA.isConnected());
+        result.put("timeout", nfcA.getTimeout());
     }
 
     @Override
@@ -654,6 +715,54 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         }
     }
 
+    private void connectIsoDep() throws NfcInFlutterException {
+        IsoDep tag = IsoDep.get(lastTag);
+        if (tag == null) {
+            throw new NfcInFlutterException("TagNotIsoDep", "the last tag scanned does not support the IsoDep technology", null);
+        }
+
+        try {
+            tag.connect();
+        } catch (IOException e) {
+            throw new NfcInFlutterException("IOError", e.getMessage(), null);
+        }
+    }
+
+    private void closeIsoDep() throws NfcInFlutterException {
+        IsoDep tag = IsoDep.get(lastTag);
+        if (tag == null) {
+            throw new NfcInFlutterException("TagNotIsoDep", "the last tag scanned does not support the IsoDep technology", null);
+        }
+
+        try {
+            tag.close();
+        } catch (IOException e) {
+            throw new NfcInFlutterException("IOError", e.getMessage(), null);
+        }
+    }
+
+    private byte[] transceiveIsoDep(byte[] data) throws NfcInFlutterException {
+        IsoDep tag = IsoDep.get(lastTag);
+        if (tag == null) {
+            throw new NfcInFlutterException("TagNotIsoDep", "the last tag scanned does not support the IsoDep technology", null);
+        }
+
+        try {
+            return tag.transceive(data);
+        } catch (IOException e) {
+            throw new NfcInFlutterException("IOError", e.getMessage(), null);
+        }
+    }
+
+    private void setIsoDepTimeout(int timeout) throws NfcInFlutterException {
+        IsoDep tag = IsoDep.get(lastTag);
+        if (tag == null) {
+            throw new NfcInFlutterException("TagNotIsoDep", "the last tag scanned does not support the IsoDep technology", null);
+        }
+
+        tag.setTimeout(timeout);
+    }
+
     private void connectNFCA() throws NfcInFlutterException {
         NfcA tag = NfcA.get(lastTag);
         if (tag == null) {
@@ -680,18 +789,26 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         }
     }
 
-    private void transceiveNFCA() throws NfcInFlutterException {
+    private byte[] transceiveNFCA(byte[] data) throws NfcInFlutterException {
         NfcA tag = NfcA.get(lastTag);
         if (tag == null) {
             throw new NfcInFlutterException("TagNotNFCA", "the last tag scanned does not support the NFCA technology", null);
         }
 
         try {
-            byte[] data = {}; // TODO
-            tag.transceive(data);
+            return tag.transceive(data);
         } catch (IOException e) {
             throw new NfcInFlutterException("IOError", e.getMessage(), null);
         }
+    }
+
+    private void setNFCATimeout(int timeout) throws NfcInFlutterException {
+        NfcA tag = NfcA.get(lastTag);
+        if (tag == null) {
+            throw new NfcInFlutterException("TagNotNFCA", "the last tag scanned does not support the NFCA technology", null);
+        }
+
+        tag.setTimeout(timeout);
     }
 
     private void eventSuccess(final Object result) {

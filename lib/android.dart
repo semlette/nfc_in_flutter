@@ -3,14 +3,6 @@ import 'dart:typed_data';
 import './src/core.dart';
 import './src/api.dart';
 
-class IsoDep {
-  Future<Uint8List> transceive(Uint8List data) async {
-    Uint8List response =
-        await Core.channel.invokeMethod("android.transceiveIsoDep", data);
-    return Future.value(Uint8List.fromList(response));
-  }
-}
-
 class NFCA {
   final Uint8List atqa;
   final int maxTransceiveLength;
@@ -47,6 +39,43 @@ class NFCA {
   }
 }
 
+class IsoDep extends NFCA {
+  final Uint8List hiLayerResponse;
+  final Uint8List historicalBytes;
+  final bool isExtendedLengthApduSupported;
+
+  IsoDep._internal(
+    this.hiLayerResponse,
+    this.historicalBytes,
+    this.isExtendedLengthApduSupported,
+    Uint8List atqa,
+    int maxTransceiveLength,
+    int sak,
+    int timeout,
+    bool isConnected,
+  ) : super._internal(atqa, maxTransceiveLength, sak, timeout, isConnected);
+
+  Future<void> connect() {
+    return Core.channel.invokeMethod("android.connectIsoDep");
+  }
+
+  Future<void> close() {
+    return Core.channel.invokeMethod("android.closeIsoDep");
+  }
+
+  Future<Uint8List> transceive(Uint8List data) async {
+    Uint8List response =
+        await Core.channel.invokeMethod("android.transceiveIsoDep", data);
+    return Future.value(response);
+  }
+
+  Future<void> setTimeout(Duration timeout) {
+    return Core.channel.invokeMethod("android.setIsoDepTimeout", {
+      "timeout": timeout.inMilliseconds,
+    });
+  }
+}
+
 class AndroidNFC {
   static Stream<IsoDep> _streamWithIsoDep(Stream stream) {
     return stream.where((tag) {
@@ -54,14 +83,25 @@ class AndroidNFC {
       return tag["message_type"] == "isodep";
     }).map<IsoDep>((tag) {
       assert(tag is Map);
-
-      return IsoDep();
+      return IsoDep._internal(
+        tag["hi_layer_response"],
+        tag["historical_bytes"],
+        tag["is_extended_length_apdu_supported"],
+        tag["atqa"],
+        tag["max_transceive_length"],
+        tag["sak"],
+        tag["timeout"],
+        tag["is_connected"],
+      );
     });
   }
 
   static void _startReadingIsoDep(bool once, NFCReaderMode readerMode) {
-    // Start reading};
-    Core.channel.invokeMethod("android.startIsoDepReading", readerMode.options);
+    // Start reading
+    Map arguments = {
+      "reader_mode": readerMode.name,
+    }..addAll(readerMode.options);
+    Core.channel.invokeMethod("android.startIsoDepReading", arguments);
   }
 
   static Stream<IsoDep> readIsoDep({
