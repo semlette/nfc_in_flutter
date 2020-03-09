@@ -1,6 +1,14 @@
+## 2.0.4
+
+-   CoreNFC is now a `weak_framework`. This should fix a crash on iOS devices that doesn't support NFC. (credit to GitHub user @mxpazyj)
+-   Added `alertMessage` argument to `readNDEF()`. This controls the message on the iOS NFC modal. (credit to GitHub user @dghilardi)
+-   Actually fixed `NDEFRecord.languageCode` being ignored when writing
+-   Support for reading and writing to empty tags on Android
+-   Fixed CoreNFC crashing after cancelling reading multiple times in a row (credit to GitHub user @martyfuhry)
+
 ## 2.0.3
 
--   Fixed `NDEFRecord.languageCode` being ignored when writing
+-   ~~Fixed `NDEFRecord.languageCode` being ignored when writing~~
 
 ## 2.0.2
 
