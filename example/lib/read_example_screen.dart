@@ -12,7 +12,9 @@ class _ReadExampleScreenState extends State<ReadExampleScreen> {
 
   void _startScanning() {
     setState(() {
-      _stream = NFC.readNDEF(once: true).listen((NDEFMessage message) {
+      _stream = NFC
+          .readNDEF(alertMessage: "Custom message with readNDEF#alertMessage")
+          .listen((NDEFMessage message) {
         if (message.isEmpty) {
           print("Read empty NDEF message");
           return;

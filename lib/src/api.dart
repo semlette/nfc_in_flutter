@@ -60,11 +60,12 @@ class NFC {
     });
   }
 
-  static void _startReadingNDEF(bool once, String message, NFCReaderMode readerMode) {
+  static void _startReadingNDEF(
+      bool once, String alertMessage, NFCReaderMode readerMode) {
     // Start reading
     Map arguments = {
       "scan_once": once,
-      "alert_message": message,
+      "alert_message": alertMessage,
       "reader_mode": readerMode.name,
     }..addAll(readerMode._options);
     _channel.invokeMethod("startNDEFReading", arguments);
@@ -82,11 +83,8 @@ class NFC {
       /// should be thrown on iOS when the user clicks Cancel/Done.
       bool throwOnUserCancel = true,
 
-      /// message specify the message shown to the user when the NFC modal is
-      /// open
-      ///
-      /// This is ignored on Android as it does not have NFC modal
-      String message = "",
+      /// alertMessage sets the message on the iOS NFC modal.
+      String alertMessage = "",
 
       /// readerMode specifies which mode the reader should use. By default it
       /// will use the normal mode, which scans for tags normally without
@@ -152,7 +150,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, message, const NFCNormalReaderMode());
+      _startReadingNDEF(once, alertMessage, const NFCNormalReaderMode());
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
