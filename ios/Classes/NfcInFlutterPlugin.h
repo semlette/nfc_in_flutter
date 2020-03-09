@@ -19,7 +19,7 @@
 
 - (BOOL)isNDEFReadingAvailable;
 
-- (void)beginReadingNDEF:(BOOL)once API_AVAILABLE(ios(11.0));
+- (void)beginReadingNDEF:(BOOL)once  alertMessage:(NSString * _Nonnull)alertMessage API_AVAILABLE(ios(11.0));
 
 - (void)writeNDEFMessage:(NFCNDEFMessage * _Nonnull)message completionHandler:(void (^ _Nonnull) (FlutterError * _Nullable error))completionHandler API_AVAILABLE(ios(13.0));
 

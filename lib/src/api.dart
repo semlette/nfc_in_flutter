@@ -51,10 +51,12 @@ class NFC {
     });
   }
 
-  static void _startReadingNDEF(bool once, NFCReaderMode readerMode) {
+  static void _startReadingNDEF(
+      bool once, String message, NFCReaderMode readerMode) {
     // Start reading
     Map arguments = {
       "scan_once": once,
+      "alert_message": message,
       "reader_mode": readerMode.name,
     }..addAll(readerMode.options);
     Core.channel.invokeMethod("startNDEFReading", arguments);
@@ -72,6 +74,12 @@ class NFC {
       /// should be thrown on iOS when the user clicks Cancel/Done.
       bool throwOnUserCancel = true,
 
+      /// message specify the message shown to the user when the NFC modal is
+      /// open
+      ///
+      /// This is ignored on Android as it does not have NFC modal
+      String message = "",
+
       /// readerMode specifies which mode the reader should use. By default it
       /// will use the normal mode, which scans for tags normally without
       /// support for peer-to-peer operations, such as emulated host cards.
@@ -80,7 +88,7 @@ class NFC {
       NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
     return Core.startReading(
       (stream) => _streamWithNDEFMessages(stream),
-      () => _startReadingNDEF(once, readerMode),
+      () => _startReadingNDEF(once, message, readerMode),
       once: once,
     );
   }
@@ -94,6 +102,12 @@ class NFC {
 
       /// once will stop reading after the first tag has been read.
       bool once = false,
+
+      /// message specify the message shown to the user when the NFC modal is
+      /// open
+      ///
+      /// This is ignored on Android as it does not have NFC modal
+      String message = "",
 
       /// readerMode specifies which mode the reader should use.
       NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
@@ -129,7 +143,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, readerMode);
+      _startReadingNDEF(once, message, readerMode);
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
@@ -304,7 +318,7 @@ class NDEFRecord {
   NDEFRecord.text(String message, {languageCode = "en"})
       : id = null,
         data = message,
-        payload = languageCode + message,
+        payload = message,
         type = "T",
         tnf = NFCTypeNameFormat.well_known,
         this.languageCode = languageCode;
@@ -373,6 +387,7 @@ class NDEFRecord {
       "payload": payload ?? "",
       "type": type ?? "",
       "tnf": tnf ?? "unknown",
+      "languageCode": languageCode,
     };
   }
 }

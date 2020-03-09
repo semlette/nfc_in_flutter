@@ -43,7 +43,7 @@
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
         NSDictionary *args = call.arguments;
         if (@available(iOS 11.0, *)) {
-            [delegate beginReadingNDEF:[args[@"scan_once"] boolValue]];
+            [delegate beginReadingNDEF:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
             result(nil);
         } else {
             result([FlutterError errorWithCode:@"NDEFUnsupportedFeatureError" message:@"Writing NDEF messages is not supported" details:nil]);
@@ -90,9 +90,10 @@
     return NO;
 }
 
-- (void)beginReadingNDEF:(BOOL)once API_AVAILABLE(ios(11.0)) {
+- (void)beginReadingNDEF:(BOOL)once alertMessage:(NSString * _Nonnull)alertMessage API_AVAILABLE(ios(11.0)) {
     if (ndefSession == nil) {
         ndefSession = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:_queue invalidateAfterFirstRead: once];
+        ndefSession.alertMessage = alertMessage;
     }
     [ndefSession beginSession];
 }
@@ -420,6 +421,8 @@
                 case 0x23:
                     url = @"urn:nfc:";
                     break;
+                default:
+                    url = @"";
             }
             // Remove the first byte from and add the URL prefix to the payload
             NSString *trimmedPayload = [[NSString alloc] initWithData:
@@ -528,7 +531,7 @@
         } else if ([@"well_known" isEqualToString:recordTNF]) {
             if ([@"T" isEqualToString:recordType]) {
                 NSLocale* locale = [NSLocale localeWithLocaleIdentifier:recordLanguageCode];
-                NFCNDEFPayload *ndefRecord = [NFCNDEFPayload wellKnowTypeTextPayloadWithString:recordPayload locale:locale];
+                NFCNDEFPayload *ndefRecord = [NFCNDEFPayload wellKnownTypeTextPayloadWithString:recordPayload locale:locale];
                 [ndefRecords addObject:ndefRecord];
                 continue;
             } else if ([@"U" isEqualToString:recordType]) {

@@ -1,3 +1,15 @@
+## 2.0.3
+
+-   Fixed `NDEFRecord.languageCode` being ignored when writing
+
+## 2.0.2
+
+-   Fixed a crash when reading tags containing records with a custom url protocol and well known type URL
+
+## 2.0.1
+
+-   Fixed writing TNF text records on iOS (credit to GitHub user @janipiippow)
+
 ## 2.0.0
 
 -   Added `noSounds` flag to `NFCNormalReaderMode`

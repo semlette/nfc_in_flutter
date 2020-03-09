@@ -1,6 +1,6 @@
 name: nfc_in_flutter
 description: Flutter plugin to read and write NFC tags on both Android and iOS. Currently it only supports reading NDEF formatted tags.
-version: 2.0.0
+version: 2.0.3
 author: Andi Robin Halgren Semler <andirobinsemler@gmail.com>
 homepage: https://github.com/semlette/nfc_in_flutter
 repository: https://github.com/semlette/nfc_in_flutter
