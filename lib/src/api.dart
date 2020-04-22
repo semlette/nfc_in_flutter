@@ -107,37 +107,26 @@ class NFC {
       if (error is PlatformException) {
         switch (error.code) {
           case "NDEFUnsupportedFeatureError":
-            controller.addError(NDEFReadingUnsupportedException());
-            controller.close();
-            return;
+            error = NDEFReadingUnsupportedException();
+            break;
           case "UserCanceledSessionError":
-            if (throwOnUserCancel)
-              controller.addError(NFCUserCanceledSessionException());
-            controller.close();
-            return;
+            if (throwOnUserCancel) error = NFCUserCanceledSessionException();
+            break;
           case "SessionTimeoutError":
-            controller.addError(NFCSessionTimeoutException());
-            controller.close();
-            return;
+            error = NFCSessionTimeoutException();
+            break;
           case "SessionTerminatedUnexpectedlyErorr":
-            controller.addError(
-                NFCSessionTerminatedUnexpectedlyException(error.message));
-            controller.close();
-            return;
+            error = NFCSessionTerminatedUnexpectedlyException(error.message);
+            break;
           case "SystemIsBusyError":
-            controller.addError(NFCSystemIsBusyException(error.message));
-            controller.close();
-            return;
+            error = NFCSystemIsBusyException(error.message);
+            break;
           case "IOError":
-            controller.addError(NFCIOException(error.message));
-            if (error.details != null) {
-              assert(error.details is Map);
-              if (error.details["fatal"] == true) controller.close();
-            }
-            return;
+            error = NFCIOException(error.message);
+            break;
           case "NDEFBadFormatError":
-            controller.addError(NDEFBadFormatException(error.message));
-            return;
+            error = NDEFBadFormatException(error.message);
+            break;
         }
       }
       controller.addError(error);

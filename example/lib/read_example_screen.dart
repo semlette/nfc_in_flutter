@@ -24,6 +24,21 @@ class _ReadExampleScreenState extends State<ReadExampleScreen> {
           print(
               "Record '${record.id ?? "[NO ID]"}' with TNF '${record.tnf}', type '${record.type}', payload '${record.payload}' and data '${record.data}' and language code '${record.languageCode}'");
         }
+      }, onError: (error) {
+        setState(() {
+          _stream = null;
+        });
+        if (error is NFCUserCanceledSessionException) {
+          print("user canceled");
+        } else if (error is NFCSessionTimeoutException) {
+          print("session timed out");
+        } else {
+          print("error: $error");
+        }
+      }, onDone: () {
+        setState(() {
+          _stream = null;
+        });
       });
     });
   }
