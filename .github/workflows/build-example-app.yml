@@ -8,9 +8,9 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: Download Flutter
-      run: curl -o flutter_linux_v1.7.8+hotfix.4-stable.tar.xz https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_v1.7.8+hotfix.4-stable.tar.xz
+      run: curl -o flutter_linux_v1.12.13+hotfix.9-stable.tar.xz https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_v1.12.13+hotfix.9-stable.tar.xz
     - name: Unpack Flutter
-      run: tar xf flutter_linux_v1.7.8+hotfix.4-stable.tar.xz
+      run: tar xf flutter_linux_v1.12.13+hotfix.9-stable.tar.xz
     - name: Run Flutter doctor
       run: ./flutter/bin/flutter doctor
     - name: Build example/
