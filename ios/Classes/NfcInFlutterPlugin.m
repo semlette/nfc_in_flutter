@@ -117,8 +117,6 @@
                         message:error.localizedDescription
                         details:nil]);
         }
-        
-        self->events(FlutterEndOfEventStream);
     });
 }
 
