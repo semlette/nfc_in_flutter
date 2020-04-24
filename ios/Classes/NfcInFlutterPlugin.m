@@ -64,18 +64,17 @@
 @implementation NFCWrapperBase
 
 - (void)readerSession:(nonnull NFCNDEFReaderSession *)session didInvalidateWithError:(nonnull NSError *)error API_AVAILABLE(ios(11.0)) {
+    // When a session has been invalidated it needs to be created again to work.
+    // Since this function is called when it invalidates, the session can safely be removed.
+    // A new session doesn't have to be created immediately as that will happen the next time
+    // startReading() is called.
+    self->session = nil;
+    
+    // If the event stream is closed we can't send the error
+    if (self->events == nil) {
+        return;
+    }
     dispatch_async(dispatch_get_main_queue(), ^{
-        // When a session has been invalidated it needs to be created again to work.
-        // Since this function is called when it invalidates, the session can safely be removed.
-        // A new session doesn't have to be created immediately as that will happen the next time
-        // startReading() is called.
-        self->session = nil;
-        
-        // If the event stream is closed we can't send the error
-        if (self->events == nil) {
-            NSLog(@"no stream sink active, impossible to send error");
-            return;
-        }
         switch ([error code]) {
             case NFCReaderSessionInvalidationErrorFirstNDEFTagRead:
                 // When this error is returned it doesn't need to be sent to the client
@@ -434,13 +433,11 @@
 }
     
 - (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (self->session == nil) {
-            self->session = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:self->dispatchQueue invalidateAfterFirstRead: once];
-            self->session.alertMessage = alertMessage;
-        }
-        [self->session beginSession];
-    });
+    if (self->session == nil) {
+        self->session = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:self->dispatchQueue invalidateAfterFirstRead: once];
+        self->session.alertMessage = alertMessage;
+    }
+    [self->session beginSession];
 }
     
 - (BOOL)isEnabled {
@@ -558,6 +555,9 @@
                         if (error != nil) {
                             FlutterError *flutterError;
                             switch (error.code) {
+                                case NFCReaderSessionInvalidationErrorUserCanceled:
+                                    flutterError = [FlutterError errorWithCode:@"UserCanceledSessionError" message:@"the user has canceled the reading session" details:nil];
+                                    break;
                                 case NFCNdefReaderSessionErrorTagNotWritable:
                                     flutterError = [FlutterError errorWithCode:@"NFCTagNotWritableError" message:@"the tag is not writable" details:nil];
                                     break;

@@ -101,39 +101,23 @@ class NFC {
     StreamController<NDEFMessage> controller = StreamController();
     final stream = once ? _tagStream.take(1) : _tagStream;
     // Listen for tag reads.
-    final subscription = stream.listen((message) {
-      controller.add(message);
-    }, onError: (error) {
-      if (error is PlatformException) {
-        switch (error.code) {
-          case "NDEFUnsupportedFeatureError":
-            error = NDEFReadingUnsupportedException();
-            break;
-          case "UserCanceledSessionError":
-            if (throwOnUserCancel) error = NFCUserCanceledSessionException();
-            break;
-          case "SessionTimeoutError":
-            error = NFCSessionTimeoutException();
-            break;
-          case "SessionTerminatedUnexpectedlyErorr":
-            error = NFCSessionTerminatedUnexpectedlyException(error.message);
-            break;
-          case "SystemIsBusyError":
-            error = NFCSystemIsBusyException(error.message);
-            break;
-          case "IOError":
-            error = NFCIOException(error.message);
-            break;
-          case "NDEFBadFormatError":
-            error = NDEFBadFormatException(error.message);
-            break;
+    final subscription = stream.listen(
+      (message) => controller.add(message),
+      onError: (error) {
+        error = _mapException(error);
+        if (!throwOnUserCancel && error is NFCUserCanceledSessionException) {
+          return;
         }
-      }
-      controller.addError(error);
-    }, onDone: () {
-      _tagStream = null;
-      return controller.close();
-    });
+        controller.addError(error);
+      },
+      onDone: () {
+        _tagStream = null;
+        return controller.close();
+      },
+      // cancelOnError: false
+      // cancelOnError cannot be used as the stream would cancel BEFORE the error
+      // was sent to the controller stream
+    );
     controller.onCancel = () {
       subscription.cancel();
     };
@@ -143,8 +127,12 @@ class NFC {
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
+      } else if (err.code == "SystemIsBusyError") {
+        throw NFCSystemIsBusyException(err.message);
       }
       throw err;
+    } catch (error) {
+      throw error;
     }
 
     return controller.stream;
@@ -175,26 +163,38 @@ class NFC {
     StreamController<NDEFTag> controller = StreamController();
 
     int writes = 0;
-    StreamSubscription<NFCMessage> stream = _tagStream.listen((msg) async {
-      NDEFMessage message = msg;
-      if (message.tag.writable) {
-        try {
-          await message.tag.write(newMessage);
-        } catch (err) {
-          controller.addError(err);
-          return;
+    StreamSubscription<NFCMessage> stream = _tagStream.listen(
+      (msg) async {
+        NDEFMessage message = msg;
+        if (message.tag.writable) {
+          try {
+            await message.tag.write(newMessage);
+          } catch (err) {
+            controller.addError(err);
+            controller.close();
+            return;
+          }
+          writes++;
+          controller.add(message.tag);
         }
-        writes++;
-        controller.add(message.tag);
-      }
 
-      if (once && writes > 0) {
+        if (once && writes > 0) {
+          controller.close();
+        }
+      },
+      onError: (error) {
+        error = _mapException(error);
+        controller.addError(error);
         controller.close();
-      }
-    }, onDone: () {
-      _tagStream = null;
-      return controller.close();
-    });
+      },
+      onDone: () {
+        _tagStream = null;
+        return controller.close();
+      },
+      // cancelOnError: false
+      // cancelOnError cannot be used as the stream would cancel BEFORE the error
+      // was sent to the controller stream
+    );
     controller.onCancel = () {
       stream.cancel();
     };
@@ -501,6 +501,37 @@ class NDEFTag implements NFCTag {
         default:
           throw e;
       }
+    } catch (error) {
+      throw error;
     }
   }
+}
+
+Exception _mapException(dynamic error) {
+  if (error is PlatformException) {
+    switch (error.code) {
+      case "NDEFUnsupportedFeatureError":
+        error = NDEFReadingUnsupportedException();
+        break;
+      case "UserCanceledSessionError":
+        error = NFCUserCanceledSessionException();
+        break;
+      case "SessionTimeoutError":
+        error = NFCSessionTimeoutException();
+        break;
+      case "SessionTerminatedUnexpectedlyErorr":
+        error = NFCSessionTerminatedUnexpectedlyException(error.message);
+        break;
+      case "SystemIsBusyError":
+        error = NFCSystemIsBusyException(error.message);
+        break;
+      case "IOError":
+        error = NFCIOException(error.message);
+        break;
+      case "NDEFBadFormatError":
+        error = NDEFBadFormatException(error.message);
+        break;
+    }
+  }
+  return error;
 }
