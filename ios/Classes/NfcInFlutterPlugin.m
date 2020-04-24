@@ -119,7 +119,7 @@
                         details:nil]);
         }
         
-        // The stream will automatically be closed by Flutter when we send an error through
+        self->events(FlutterEndOfEventStream);
     });
 }
 
