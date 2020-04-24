@@ -7,6 +7,7 @@ import './read_example_screen.dart';
 import './write_example_screen.dart';
 import './read_nfca_example_screen.dart';
 import './read_isodep_example_screen.dart';
+import './ios_screen.dart';
 
 void main() => runApp(ExampleApp());
 
@@ -45,6 +46,12 @@ class ExampleApp extends StatelessWidget {
                   Navigator.pushNamed(context, "/read_isodep_example");
                 },
               ),
+              ListTile(
+                title: const Text("iOS only"),
+                onTap: () {
+                  Navigator.pushNamed(context, "/ios");
+                },
+              ),
             ],
           );
         }),
@@ -54,6 +61,7 @@ class ExampleApp extends StatelessWidget {
         "/write_example": (context) => WriteExampleScreen(),
         "/read_nfca_example": (context) => ReadNFCAExampleScreen(),
         "/read_isodep_example": (context) => ReadIsoDepExampleScreen(),
+        "/ios": (context) => IOSScreen(),
       },
     );
   }

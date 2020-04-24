@@ -1,6 +1,10 @@
 #import <CoreNFC/CoreNFC.h>
 #import "NfcInFlutterPlugin.h"
 
+const NSString *noTagReaderSessionPreference = @"none";
+const NSString *prefersTagReaderSession = @"preferred";
+const NSString *requireTagReaderSession = @"required";
+
 @implementation NfcInFlutterPlugin
     
 @synthesize delegate;
@@ -42,6 +46,10 @@
         result([NSNumber numberWithBool:[delegate isNDEFReadingAvailable]]);
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
         NSDictionary *args = call.arguments;
+        
+        NSLog(@"prefers tag reader session: %@", args[@"tag_reader_preference"]);
+        // TODO: Pass NFCReaderSession to beginReadingNDEF
+        
         if (@available(iOS 11.0, *)) {
             [delegate beginReadingNDEF:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
             result(nil);
@@ -58,6 +66,8 @@
         } else {
             result([FlutterError errorWithCode:@"NDEFUnsupportedFeatureError" message:@"Writing NDEF messages is not supported" details:nil]);
         }
+    } else if ([@"tagReadingSupported" isEqualToString:call.method]) {
+        result([NSNumber numberWithBool:[delegate isTagReadingAvailable]]);
     } /*
        TODO: Add methods for interacting with other cards
    */ else {

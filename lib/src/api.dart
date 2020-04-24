@@ -52,43 +52,52 @@ class NFC {
   }
 
   static void _startReadingNDEF(
-      bool once, String message, NFCReaderMode readerMode) {
+    bool once,
+    String message,
+    NFCReaderMode readerMode,
+    IOSTagReaderPreference iosTagReaderPreference,
+  ) {
     // Start reading
     Map arguments = {
       "scan_once": once,
       "alert_message": message,
       "reader_mode": readerMode.name,
+      "tag_reader_preference": iosTagReaderPreference.toString(),
     }..addAll(readerMode.options);
     Core.channel.invokeMethod("startNDEFReading", arguments);
   }
 
   /// readNDEF starts listening for NDEF formatted tags. Any non-NDEF formatted
   /// tags will be filtered out.
-  static Stream<NDEFMessage> readNDEF(
-      {
+  static Stream<NDEFMessage> readNDEF({
+    /// once will stop reading after the first tag has been read.
+    bool once = false,
 
-      /// once will stop reading after the first tag has been read.
-      bool once = false,
+    /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
+    /// should be thrown on iOS when the user clicks Cancel/Done.
+    bool throwOnUserCancel = true,
 
-      /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
-      /// should be thrown on iOS when the user clicks Cancel/Done.
-      bool throwOnUserCancel = true,
+    /// message specify the message shown to the user when the NFC modal is
+    /// open
+    ///
+    /// This is ignored on Android as it does not have NFC modal
+    String message = "",
 
-      /// message specify the message shown to the user when the NFC modal is
-      /// open
-      ///
-      /// This is ignored on Android as it does not have NFC modal
-      String message = "",
+    /// readerMode specifies which mode the reader should use. By default it
+    /// will use the normal mode, which scans for tags normally without
+    /// support for peer-to-peer operations, such as emulated host cards.
+    ///
+    /// This is ignored on iOS as it only has one reading mode.
+    @deprecated NFCReaderMode readerMode = const NFCNormalReaderMode(),
 
-      /// readerMode specifies which mode the reader should use. By default it
-      /// will use the normal mode, which scans for tags normally without
-      /// support for peer-to-peer operations, such as emulated host cards.
-      ///
-      /// This is ignored on iOS as it only has one reading mode.
-      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
+    /// iosTagReaderPreference controls if `NFCTagReaderSession` should be
+    /// preferred to `NFCNDEFReaderSession`.
+    IOSTagReaderPreference iosTagReaderPreference = IOSTagReaderPreference.none,
+  }) {
     return Core.startReading(
       (stream) => _streamWithNDEFMessages(stream),
-      () => _startReadingNDEF(once, message, readerMode),
+      () =>
+          _startReadingNDEF(once, message, readerMode, iosTagReaderPreference),
       once: once,
     );
   }
@@ -97,20 +106,25 @@ class NFC {
   /// the stream is active.
   /// If you only want to write to the first tag, you can set the [once]
   /// argument to `true` and use the `.first` method on the returned `Stream`.
-  static Stream<NDEFTag> writeNDEF(NDEFMessage newMessage,
-      {
+  static Stream<NDEFTag> writeNDEF(
+    NDEFMessage newMessage, {
 
-      /// once will stop reading after the first tag has been read.
-      bool once = false,
+    /// once will stop reading after the first tag has been read.
+    bool once = false,
 
-      /// message specify the message shown to the user when the NFC modal is
-      /// open
-      ///
-      /// This is ignored on Android as it does not have NFC modal
-      String message = "",
+    /// message specify the message shown to the user when the NFC modal is
+    /// open
+    ///
+    /// This is ignored on Android as it does not have NFC modal
+    String message = "",
 
-      /// readerMode specifies which mode the reader should use.
-      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
+    /// readerMode specifies which mode the reader should use.
+    @deprecated NFCReaderMode readerMode = const NFCNormalReaderMode(),
+
+    /// iosTagReaderPreference controls if `NFCTagReaderSession` should be
+    /// preferred to `NFCNDEFReaderSession`.
+    IOSTagReaderPreference iosTagReaderPreference = IOSTagReaderPreference.none,
+  }) {
     if (Core.tagStream == null) {
       Core.createTagStream();
     }
@@ -143,7 +157,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, message, readerMode);
+      _startReadingNDEF(once, message, readerMode, iosTagReaderPreference);
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
@@ -160,6 +174,19 @@ class NFC {
     assert(supported is bool);
     return supported as bool;
   }
+}
+
+enum IOSTagReaderPreference {
+  /// none sets the preferred `NFCReaderSession` to `NFCNDEFReaderSession`.
+  /// This allows for the best backwards-compatability.
+  none,
+
+  /// preferred will use `NFCTagReaderSession` if the user's device supports it
+  preferred,
+
+  /// required will only use `NFCTagReaderSession` and will throw an exception
+  /// if the user's device does not support it
+  required,
 }
 
 /// NFCReaderMode is an interface for different reading modes
