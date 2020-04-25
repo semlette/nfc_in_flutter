@@ -109,6 +109,7 @@ class NFC {
           return;
         }
         controller.addError(error);
+        controller.close();
       },
       onDone: () {
         _tagStream = null;
