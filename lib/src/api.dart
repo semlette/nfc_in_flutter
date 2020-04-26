@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:nfc_in_flutter/nfc_in_flutter.dart';
+
 import './core.dart';
 import './exceptions.dart';
 import 'package:flutter/services.dart';
@@ -62,7 +64,8 @@ class NFC {
       "scan_once": once,
       "alert_message": message,
       "reader_mode": readerMode.name,
-      "tag_reader_preference": iosTagReaderPreference.toString(),
+      "tag_reader_preference":
+          _iosTagReaderPreferenceString(iosTagReaderPreference),
     }..addAll(readerMode.options);
     Core.channel.invokeMethod("startNDEFReading", arguments);
   }
@@ -187,6 +190,19 @@ enum IOSTagReaderPreference {
   /// required will only use `NFCTagReaderSession` and will throw an exception
   /// if the user's device does not support it
   required,
+}
+
+String _iosTagReaderPreferenceString(IOSTagReaderPreference preference) {
+  switch (preference) {
+    case IOSTagReaderPreference.none:
+      return "none";
+    case IOSTagReaderPreference.preferred:
+      return "preferred";
+    case IOSTagReaderPreference.required:
+      return "required";
+    default:
+      throw Exception("unknown tag reader preference");
+  }
 }
 
 /// NFCReaderMode is an interface for different reading modes

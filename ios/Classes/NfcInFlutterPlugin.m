@@ -1,9 +1,10 @@
 #import <CoreNFC/CoreNFC.h>
 #import "NfcInFlutterPlugin.h"
+#import "NSData+Conversion.h"
 
-const NSString *noTagReaderSessionPreference = @"none";
-const NSString *prefersTagReaderSession = @"preferred";
-const NSString *requireTagReaderSession = @"required";
+static NSString *noTagReaderSessionPreference = @"none";
+static NSString *prefersTagReaderSession = @"preferred";
+static NSString *requireTagReaderSession = @"required";
 
 @implementation NfcInFlutterPlugin
     
@@ -46,15 +47,36 @@ const NSString *requireTagReaderSession = @"required";
         result([NSNumber numberWithBool:[delegate isNDEFReadingAvailable]]);
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
         NSDictionary *args = call.arguments;
+        NSString *tagReaderPreference = args[@"tag_reader_preference"];
         
-        NSLog(@"prefers tag reader session: %@", args[@"tag_reader_preference"]);
-        // TODO: Pass NFCReaderSession to beginReadingNDEF
-        
-        if (@available(iOS 11.0, *)) {
-            [delegate beginReadingNDEF:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
-            result(nil);
+        if ([tagReaderPreference isEqualToString:noTagReaderSessionPreference]) {
+            if (@available(iOS 11.0, *)) {
+                [delegate beginReadingNDEF:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
+                result(nil);
+            } else {
+                result([FlutterError errorWithCode:@"NDEFUnsupportedFeatureError" message:@"Writing NDEF messages is not supported" details:nil]);
+            }
+        } else if ([tagReaderPreference isEqualToString:prefersTagReaderSession]) {
+            if (@available(iOS 13.0, *)) {
+                // TODO: polling options
+                [delegate beginReadingTags:[args[@"scan_once"] boolValue]];
+                result(nil);
+            } else if (@available(iOS 11.0, *)) {
+                [delegate beginReadingNDEF:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
+                result(nil);
+            } else {
+                result([FlutterError errorWithCode:@"NDEFUnsupportedFeatureError" message:@"Writing NDEF messages is not supported" details:nil]);
+            }
+        } else if ([tagReaderPreference isEqualToString:requireTagReaderSession]) {
+            if (@available(iOS 13.0, *)) {
+                // TODO: polling options
+                [delegate beginReadingTags:[args[@"scan_once"] boolValue]];
+                result(nil);
+            } else {
+                result([FlutterError errorWithCode:@"TagReadingUnsupportedFeature" message:@"Tag reader is not supported" details:nil]);
+            }
         } else {
-            result([FlutterError errorWithCode:@"NDEFUnsupportedFeatureError" message:@"Writing NDEF messages is not supported" details:nil]);
+            exit(1);
         }
     } else if ([@"writeNDEF" isEqualToString:call.method]) {
         if (@available(iOS 13.0, *)) {
@@ -84,10 +106,12 @@ const NSString *requireTagReaderSession = @"required";
 @synthesize events;
 @synthesize ndefSession;
 @synthesize tagSession;
+@synthesize queue;
+@synthesize methodChannel;
 
 - (instancetype _Nonnull)init:(FlutterMethodChannel * _Nonnull)methodChannel dispatchQueue:(dispatch_queue_t _Nonnull)dispatchQueue {
-    _methodChannel = methodChannel;
-    _queue = dispatchQueue;
+    self->methodChannel = methodChannel;
+    self->queue = dispatchQueue;
     return self;
 }
 
@@ -102,13 +126,13 @@ const NSString *requireTagReaderSession = @"required";
 
 - (void)beginReadingNDEF:(BOOL)once alertMessage:(NSString * _Nonnull)alertMessage API_AVAILABLE(ios(11.0)) {
     if (ndefSession == nil) {
-        ndefSession = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:_queue invalidateAfterFirstRead: once];
+        ndefSession = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:queue invalidateAfterFirstRead: once];
         ndefSession.alertMessage = alertMessage;
     }
     [ndefSession beginSession];
 }
 
-- (void)writeNDEFMessage:(NFCNDEFMessage * _Nonnull)message completionHandler:(void (^ _Nonnull) (FlutterError * _Nullable error))completionHandler API_AVAILABLE(ios(13.0)) {
+- (void)writeNDEFMessage:(NFCNDEFMessage * _Nonnull)message completionHandler:(void (^ _Nonnull) (FlutterError * _Nullable error))completionHandler API_AVAILABLE(ios(13.0)) {    
     if (lastNDEFTag != nil) {
         if (!lastTag.available) {
             completionHandler([FlutterError errorWithCode:@"NFCTagUnavailable" message:@"the tag is unavailable for writing" details:nil]);
@@ -584,14 +608,49 @@ const NSString *requireTagReaderSession = @"required";
 }
 
 - (void)beginReadingTags:(BOOL)once API_AVAILABLE(ios(13.0)) {
-    return;
+    if (tagSession == nil) {
+        tagSession = [[NFCTagReaderSession alloc]initWithPollingOption:NFCPollingISO15693 delegate:self queue:queue];
+    }
+    [tagSession beginSession];
 }
 
-- (void)tagReaderSessionDidBecomeActive:(NFCTagReaderSession * _Nonnull)session API_AVAILABLE(ios(13.0)) {
-    return;
-}
+- (void)tagReaderSessionDidBecomeActive:(NFCTagReaderSession * _Nonnull)session API_AVAILABLE(ios(13.0)) {}
 
 - (void)tagReaderSession:(NFCTagReaderSession * _Nonnull)session didDetectTags:(NSArray<id<NFCTag>> * _Nonnull)tags API_AVAILABLE(ios(13.0)) {
+    id<NFCTag> tag = tags.firstObject;
+    lastTag = tag;
+    
+    // TODO: Figure out if the tag should be sent to Flutter as an NDEFMessage or the tag itself
+    // For now it will be sent as an NDEFMessage (granted it supports NDEF)
+    if ([tag conformsToProtocol:@protocol(NFCNDEFTag)]) {
+        lastNDEFTag = (id<NFCNDEFTag>) tag;
+        
+        // Get the tag identifier if possible
+        NSString *identifier = @"";
+        if ([tag conformsToProtocol:@protocol(NFCISO15693Tag)]) {
+            id<NFCISO15693Tag> iso15693Tag = (id<NFCISO15693Tag>) tag;
+            identifier = [iso15693Tag.identifier hexadecimalString];
+        }
+        
+        [session connectToTag:tag completionHandler:^(NSError *error) {
+            if (error != nil) {
+                // TODO: Send error to Flutter
+                NSLog(@"connect to tag error: %@", error.localizedDescription);
+                return;
+            }
+            [self->lastNDEFTag readNDEFWithCompletionHandler:^(NFCNDEFMessage *message, NSError *error) {
+                if (error != nil) {
+                    // TODO: Send error to Flutter
+                    NSLog(@"read message error: %@", error.localizedDescription);
+                    return;
+                }
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self->events([self formatMessageWithIdentifier:identifier message:message]);
+                });
+            }];
+        }];
+    }
+    
     return;
 }
 
