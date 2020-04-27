@@ -33,7 +33,7 @@
 
 - (BOOL)isTagReadingAvailable;
 
-- (void)beginReadingTags:(BOOL)once API_AVAILABLE(ios(13.0));
+- (void)beginReadingTags:(BOOL)once pollingOption:(NSInteger)pollingOption API_AVAILABLE(ios(13.0));
 
 - (void)iso7816SendCommand:(NFCISO7816APDU * _Nonnull)command completionHandler:(void (^ _Nonnull) (NSData * _Nullable data, FlutterError * _Nullable error))completionHandler API_AVAILABLE(ios(13.0));
 

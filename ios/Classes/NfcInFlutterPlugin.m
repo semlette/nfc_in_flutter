@@ -48,6 +48,7 @@ static NSString *requireTagReaderSession = @"required";
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
         NSDictionary *args = call.arguments;
         NSString *tagReaderPreference = args[@"tag_reader_preference"];
+        NSNumber *pollingOption = args[@"polling_options"];
         
         if ([tagReaderPreference isEqualToString:noTagReaderSessionPreference]) {
             if (@available(iOS 11.0, *)) {
@@ -58,8 +59,8 @@ static NSString *requireTagReaderSession = @"required";
             }
         } else if ([tagReaderPreference isEqualToString:prefersTagReaderSession]) {
             if (@available(iOS 13.0, *)) {
-                // TODO: polling options
-                [delegate beginReadingTags:[args[@"scan_once"] boolValue]];
+                [delegate beginReadingTags:[args[@"scan_once"] boolValue]
+                             pollingOption:[pollingOption integerValue]];
                 result(nil);
             } else if (@available(iOS 11.0, *)) {
                 [delegate beginReadingNDEF:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
@@ -69,8 +70,8 @@ static NSString *requireTagReaderSession = @"required";
             }
         } else if ([tagReaderPreference isEqualToString:requireTagReaderSession]) {
             if (@available(iOS 13.0, *)) {
-                // TODO: polling options
-                [delegate beginReadingTags:[args[@"scan_once"] boolValue]];
+                [delegate beginReadingTags:[args[@"scan_once"] boolValue]
+                             pollingOption:[pollingOption integerValue]];
                 result(nil);
             } else {
                 result([FlutterError errorWithCode:@"TagReadingUnsupportedFeature" message:@"Tag reader is not supported" details:nil]);
@@ -629,9 +630,10 @@ static NSString *requireTagReaderSession = @"required";
     return NO;
 }
 
-- (void)beginReadingTags:(BOOL)once API_AVAILABLE(ios(13.0)) {
+- (void)beginReadingTags:(BOOL)once pollingOption:(NSInteger)pollingOption API_AVAILABLE(ios(13.0)) {
+    NFCPollingOption nfcPollingOption = (NFCPollingOption) pollingOption;
     if (tagSession == nil) {
-        tagSession = [[NFCTagReaderSession alloc]initWithPollingOption:NFCPollingISO15693 delegate:self queue:queue];
+        tagSession = [[NFCTagReaderSession alloc]initWithPollingOption:nfcPollingOption delegate:self queue:queue];
     }
     [tagSession beginSession];
 }

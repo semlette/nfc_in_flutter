@@ -58,6 +58,7 @@ class NFC {
     String message,
     NFCReaderMode readerMode,
     IOSTagReaderPreference iosTagReaderPreference,
+    List<IOSPollingOption> iosPollingOptions,
   ) {
     // Start reading
     Map arguments = {
@@ -66,6 +67,7 @@ class NFC {
       "reader_mode": readerMode.name,
       "tag_reader_preference":
           _iosTagReaderPreferenceString(iosTagReaderPreference),
+      "polling_options": _iosPollingOption(iosPollingOptions),
     }..addAll(readerMode.options);
     Core.channel.invokeMethod("startNDEFReading", arguments);
   }
@@ -96,11 +98,17 @@ class NFC {
     /// iosTagReaderPreference controls if `NFCTagReaderSession` should be
     /// preferred to `NFCNDEFReaderSession`.
     IOSTagReaderPreference iosTagReaderPreference = IOSTagReaderPreference.none,
+    List<IOSPollingOption> iosPollingOptions,
   }) {
+    if (iosTagReaderPreference != IOSTagReaderPreference.none &&
+        iosPollingOptions == null) {
+      throw Exception(
+          "When [iosTagReaderPreference] is not set to `IOSTagReaderPreference.none`, [iosPollingOptions] must not be `null`");
+    }
     return Core.startReading(
       (stream) => _streamWithNDEFMessages(stream),
-      () =>
-          _startReadingNDEF(once, message, readerMode, iosTagReaderPreference),
+      () => _startReadingNDEF(
+          once, message, readerMode, iosTagReaderPreference, iosPollingOptions),
       once: once,
     );
   }
@@ -127,7 +135,14 @@ class NFC {
     /// iosTagReaderPreference controls if `NFCTagReaderSession` should be
     /// preferred to `NFCNDEFReaderSession`.
     IOSTagReaderPreference iosTagReaderPreference = IOSTagReaderPreference.none,
+    List<IOSPollingOption> iosPollingOptions,
   }) {
+    if (iosTagReaderPreference != IOSTagReaderPreference.none &&
+        iosPollingOptions == null) {
+      throw Exception(
+          "When [iosTagReaderPreference] is not set to `IOSTagReaderPreference.none`, [iosPollingOptions] must not be `null`");
+    }
+
     if (Core.tagStream == null) {
       Core.createTagStream();
     }
@@ -160,7 +175,8 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, message, readerMode, iosTagReaderPreference);
+      _startReadingNDEF(
+          once, message, readerMode, iosTagReaderPreference, iosPollingOptions);
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
@@ -203,6 +219,29 @@ String _iosTagReaderPreferenceString(IOSTagReaderPreference preference) {
     default:
       throw Exception("unknown tag reader preference");
   }
+}
+
+enum IOSPollingOption {
+  iso14443,
+  iso15693,
+  iso18092,
+}
+
+Map<IOSPollingOption, int> _iosPollingOptionValues = {
+  IOSPollingOption.iso14443: 0x1,
+  IOSPollingOption.iso15693: 0x2,
+  IOSPollingOption.iso18092: 0x4
+};
+
+int _iosPollingOption(List<IOSPollingOption> pollingOptions) {
+  if (pollingOptions.length == 0) {
+    throw Exception("pollingOptions cannot be empty");
+  }
+  int value = 0x0;
+  for (IOSPollingOption pollingOption in pollingOptions) {
+    value = value | _iosPollingOptionValues[pollingOption];
+  }
+  return value;
 }
 
 /// NFCReaderMode is an interface for different reading modes
