@@ -115,6 +115,75 @@ static NSString *requireTagReaderSession = @"required";
     return self;
 }
 
+// mapError turns a NSError* into a FlutterError* with a describtive error code
+- (FlutterError * _Nonnull)mapError:(NSError *)error context:(NSDictionary * _Nullable)context {
+    FlutterError *flutterError = nil;
+    switch (error.code) {
+            case NFCReaderErrorUnsupportedFeature:
+                flutterError = [FlutterError
+                                errorWithCode:@"NDEFUnsupportedFeatureError"
+                                message:error.localizedDescription
+                                details:nil];
+                break;
+            case NFCReaderSessionInvalidationErrorUserCanceled:
+                flutterError = [FlutterError
+                                errorWithCode:@"UserCanceledSessionError"
+                                message:error.localizedDescription
+                                details:nil];
+                break;
+            case NFCReaderSessionInvalidationErrorSessionTimeout:
+                flutterError = [FlutterError
+                                errorWithCode:@"SessionTimeoutError"
+                                message:error.localizedDescription
+                                details:nil];
+                break;
+            case NFCReaderSessionInvalidationErrorSessionTerminatedUnexpectedly:
+                flutterError = [FlutterError
+                                errorWithCode:@"SessionTerminatedUnexpectedlyError"
+                                message:error.localizedDescription
+                                details:nil];
+                break;
+            case NFCReaderSessionInvalidationErrorSystemIsBusy:
+                flutterError = [FlutterError
+                                errorWithCode:@"SystemIsBusyError"
+                                message:error.localizedDescription
+                                details:nil];
+                break;
+            case NFCNdefReaderSessionErrorTagNotWritable:
+                flutterError = [FlutterError
+                                errorWithCode:@"NFCTagNotWritableError"
+                                message:error.localizedDescription
+                                details:nil];
+                break;
+            case NFCNdefReaderSessionErrorTagSizeTooSmall: {
+                NSDictionary *details = nil;
+                if (context != nil) {
+                    NSNumber *capacity = (NSNumber *) context[@"capacity"];
+                    details = @{
+                        @"maxSize": capacity,
+                    };
+                }
+                flutterError = [FlutterError
+                                errorWithCode:@"NFCTagSizeTooSmallError"
+                                message:error.localizedDescription
+                                details:details];
+                break;
+            }
+            case NFCNdefReaderSessionErrorTagUpdateFailure:
+                flutterError = [FlutterError
+                                errorWithCode:@"NFCUpdateTagError"
+                                message:error.localizedDescription
+                                details:nil];
+                break;
+            default:
+                flutterError = [FlutterError
+                                errorWithCode:@"NFCUnexpectedError"
+                                message:error.localizedDescription
+                                details:nil];
+    }
+    return flutterError;
+}
+
 // MARK: NDEF operations
 
 - (BOOL)isNDEFReadingAvailable API_AVAILABLE(ios(11.0)) {
@@ -149,7 +218,7 @@ static NSString *requireTagReaderSession = @"required";
             // Get the tag's read/write status
             [self->lastNDEFTag queryNDEFStatusWithCompletionHandler:^(NFCNDEFStatus status, NSUInteger capacity, NSError * _Nullable error) {
                 if (error != nil) {
-                    completionHandler([FlutterError errorWithCode:@"NFCUnexpectedError" message:error.localizedDescription details:nil]);
+                    completionHandler([self mapError:error context:nil]);
                     return;
                 }
                 
@@ -157,25 +226,10 @@ static NSString *requireTagReaderSession = @"required";
                 if (status == NFCNDEFStatusReadWrite) {
                     [self->lastNDEFTag writeNDEF:message completionHandler:^(NSError * _Nullable error) {
                         if (error != nil) {
-                            FlutterError *flutterError;
-                            switch (error.code) {
-                                case NFCNdefReaderSessionErrorTagNotWritable:
-                                    flutterError = [FlutterError errorWithCode:@"NFCTagNotWritableError" message:@"the tag is not writable" details:nil];
-                                    break;
-                                case NFCNdefReaderSessionErrorTagSizeTooSmall: {
-                                    NSDictionary *details = @{
-                                        @"maxSize": [NSNumber numberWithInt:capacity],
-                                    };
-                                    flutterError = [FlutterError errorWithCode:@"NFCTagSizeTooSmallError" message:@"the tag's memory size is too small" details:details];
-                                    break;
-                                }
-                                case NFCNdefReaderSessionErrorTagUpdateFailure:
-                                    flutterError = [FlutterError errorWithCode:@"NFCUpdateTagError" message:@"the reader failed to update the tag" details:nil];
-                                    break;
-                                default:
-                                    flutterError = [FlutterError errorWithCode:@"NFCUnexpectedError" message:error.localizedDescription details:nil];
-                            }
-                            completionHandler(flutterError);
+                            NSDictionary *context = @{
+                                @"capacity": [NSNumber numberWithUnsignedInteger:capacity],
+                            };
+                            completionHandler([self mapError:error context:context]);
                         } else {
                             // Successfully wrote data to the tag
                             completionHandler(nil);
@@ -235,12 +289,16 @@ static NSString *requireTagReaderSession = @"required";
     for (id<NFCNDEFTag> tag in tags) {
         [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
             if (error != nil) {
-                NSLog(@"connect error: %@", error.localizedDescription);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self->events([self mapError:error context:nil]);
+                });
                 return;
             }
             [tag readNDEFWithCompletionHandler:^(NFCNDEFMessage * _Nullable message, NSError * _Nullable error) {
                 if (error != nil) {
-                    NSLog(@"ERROR: %@", error.localizedDescription);
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        self->events([self mapError:error context:nil]);
+                    });
                     return;
                 }
                 
@@ -270,48 +328,12 @@ static NSString *requireTagReaderSession = @"required";
         case NFCReaderSessionInvalidationErrorFirstNDEFTagRead:
             // When this error is returned it doesn't need to be sent to the client
             // as it cancels the stream after 1 read anyways
-            events(FlutterEndOfEventStream);
             return;
-        case NFCReaderErrorUnsupportedFeature:
-            events([FlutterError
-                    errorWithCode:@"NDEFUnsupportedFeatureError"
-                    message:error.localizedDescription
-                    details:nil]);
-            break;
-        case NFCReaderSessionInvalidationErrorUserCanceled:
-            events([FlutterError
-                    errorWithCode:@"UserCanceledSessionError"
-                    message:error.localizedDescription
-                    details:nil]);
-            break;
-        case NFCReaderSessionInvalidationErrorSessionTimeout:
-            events([FlutterError
-                    errorWithCode:@"SessionTimeoutError"
-                    message:error.localizedDescription
-                    details:nil]);
-            break;
-        case NFCReaderSessionInvalidationErrorSessionTerminatedUnexpectedly:
-            events([FlutterError
-                    errorWithCode:@"SessionTerminatedUnexpectedlyError"
-                    message:error.localizedDescription
-                    details:nil]);
-            break;
-        case NFCReaderSessionInvalidationErrorSystemIsBusy:
-            events([FlutterError
-                    errorWithCode:@"SystemIsBusyError"
-                    message:error.localizedDescription
-                    details:nil]);
-            break;
         default:
-            events([FlutterError
-                    errorWithCode:@"SessionError"
-                    message:error.localizedDescription
-                    details:nil]);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                self->events([self mapError:error context:nil]);
+            });
     }
-    // Make sure to close the stream, otherwise bad things will happen.
-    // (onCancelWithArguments will never be called so the stream will
-    //  not be reset and will be stuck in a 'User Canceled' error loop)
-    events(FlutterEndOfEventStream);
 }
 
 // formatMessageWithIdentifier turns a NFCNDEFMessage into a NSDictionary that
@@ -634,14 +656,16 @@ static NSString *requireTagReaderSession = @"required";
         
         [session connectToTag:tag completionHandler:^(NSError *error) {
             if (error != nil) {
-                // TODO: Send error to Flutter
-                NSLog(@"connect to tag error: %@", error.localizedDescription);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self->events([self mapError:error context:nil]);
+                });
                 return;
             }
             [self->lastNDEFTag readNDEFWithCompletionHandler:^(NFCNDEFMessage *message, NSError *error) {
                 if (error != nil) {
-                    // TODO: Send error to Flutter
-                    NSLog(@"read message error: %@", error.localizedDescription);
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        self->events([self mapError:error context:nil]);
+                    });
                     return;
                 }
                 dispatch_async(dispatch_get_main_queue(), ^{

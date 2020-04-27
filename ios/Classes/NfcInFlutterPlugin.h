@@ -27,6 +27,8 @@
 
 - (NFCNDEFMessage * _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary * _Nonnull)dictionary API_AVAILABLE(ios(13.0));
 
+- (FlutterError * _Nonnull)mapError:(NSError * _Nonnull)error context:(NSDictionary * _Nullable)context;
+
 // MARK: Tag operations
 
 - (BOOL)isTagReadingAvailable;
