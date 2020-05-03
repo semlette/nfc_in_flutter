@@ -18,6 +18,10 @@ class _ReadExampleScreenState extends State<ReadExampleScreen> {
         iosTagReaderPreference: IOSTagReaderPreference.none,
       )
           .listen((NDEFMessage message) {
+        if (message.isEmpty) {
+          print("Read empty NDEF message");
+          return;
+        }
         print(
             "Read NDEF message '${message.identifier}' with ${message.records.length} records");
         for (NDEFRecord record in message.records) {

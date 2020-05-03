@@ -318,6 +318,16 @@ class NDEFMessage implements NFCMessage {
 
   NDEFMessage._internal(this.identifier, this.id, this.type, this.records);
 
+  bool get isEmpty {
+    if (records.length == 0) {
+      return true;
+    }
+    if (records.length == 1 && records[0].tnf == NFCTypeNameFormat.empty) {
+      return true;
+    }
+    return false;
+  }
+
   // payload returns the payload of the first non-empty record. If all records
   // are empty it will return null.
   String get payload {
