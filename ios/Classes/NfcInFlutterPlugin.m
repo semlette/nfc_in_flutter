@@ -118,71 +118,78 @@ static NSString *requireTagReaderSession = @"required";
 
 // mapError turns a NSError* into a FlutterError* with a describtive error code
 - (FlutterError * _Nonnull)mapError:(NSError *)error context:(NSDictionary * _Nullable)context {
-    FlutterError *flutterError = nil;
+    NSString *errorName = nil;
     switch (error.code) {
-            case NFCReaderErrorUnsupportedFeature:
-                flutterError = [FlutterError
-                                errorWithCode:@"NDEFUnsupportedFeatureError"
-                                message:error.localizedDescription
-                                details:nil];
-                break;
-            case NFCReaderSessionInvalidationErrorUserCanceled:
-                flutterError = [FlutterError
-                                errorWithCode:@"UserCanceledSessionError"
-                                message:error.localizedDescription
-                                details:nil];
-                break;
-            case NFCReaderSessionInvalidationErrorSessionTimeout:
-                flutterError = [FlutterError
-                                errorWithCode:@"SessionTimeoutError"
-                                message:error.localizedDescription
-                                details:nil];
-                break;
-            case NFCReaderSessionInvalidationErrorSessionTerminatedUnexpectedly:
-                flutterError = [FlutterError
-                                errorWithCode:@"SessionTerminatedUnexpectedlyError"
-                                message:error.localizedDescription
-                                details:nil];
-                break;
-            case NFCReaderSessionInvalidationErrorSystemIsBusy:
-                flutterError = [FlutterError
-                                errorWithCode:@"SystemIsBusyError"
-                                message:error.localizedDescription
-                                details:nil];
-                break;
-            case NFCNdefReaderSessionErrorTagNotWritable:
-                flutterError = [FlutterError
-                                errorWithCode:@"NFCTagNotWritableError"
-                                message:error.localizedDescription
-                                details:nil];
-                break;
-            case NFCNdefReaderSessionErrorTagSizeTooSmall: {
-                NSDictionary *details = nil;
-                if (context != nil) {
-                    NSNumber *capacity = (NSNumber *) context[@"capacity"];
-                    details = @{
-                        @"maxSize": capacity,
-                    };
-                }
-                flutterError = [FlutterError
-                                errorWithCode:@"NFCTagSizeTooSmallError"
-                                message:error.localizedDescription
-                                details:details];
-                break;
+        case NFCReaderSessionInvalidationErrorUserCanceled:
+            errorName = @"UserCanceledSessionError";
+            break;
+        case NFCReaderSessionInvalidationErrorSessionTimeout:
+            errorName = @"SessionTimeoutError";
+            break;
+        case NFCReaderSessionInvalidationErrorSessionTerminatedUnexpectedly:
+            errorName = @"SessionTerminatedUnexpectedlyError";
+            break;
+        case NFCReaderSessionInvalidationErrorSystemIsBusy:
+            errorName = @"SystemIsBusyError";
+            break;
+        case NFCNdefReaderSessionErrorTagNotWritable:
+            errorName = @"NFCTagNotWritableError";
+            break;
+        case NFCNdefReaderSessionErrorTagSizeTooSmall: {
+            NSDictionary *details = nil;
+            if (context != nil) {
+                NSNumber *capacity = (NSNumber *) context[@"capacity"];
+                details = @{
+                    @"maxSize": capacity,
+                    @"failure_reason": error.localizedFailureReason,
+                };
             }
-            case NFCNdefReaderSessionErrorTagUpdateFailure:
-                flutterError = [FlutterError
-                                errorWithCode:@"NFCUpdateTagError"
-                                message:error.localizedDescription
-                                details:nil];
-                break;
-            default:
-                flutterError = [FlutterError
-                                errorWithCode:@"NFCUnexpectedError"
-                                message:error.localizedDescription
-                                details:nil];
+            return [FlutterError
+                            errorWithCode:@"NFCTagSizeTooSmallError"
+                            message:error.localizedDescription
+                            details:details];
+        }
+        case NFCNdefReaderSessionErrorTagUpdateFailure:
+            errorName = @"NFCUpdateTagError";
+            break;
+        case NFCNdefReaderSessionErrorZeroLengthMessage:
+            errorName = @"NFCZeroLengthMessageError";
+            break;
+        case NFCReaderTransceiveErrorRetryExceeded:
+            errorName = @"NFCTransceiveRetryExceededError";
+            break;
+        case NFCReaderTransceiveErrorTagConnectionLost:
+            errorName = @"NFCTransceiveTagConnectionLostError";
+            break;
+        case NFCReaderTransceiveErrorTagNotConnected:
+            errorName = @"NFCTransceiveTagNotConnectedError";
+            break;
+        case NFCReaderTransceiveErrorTagResponseError:
+            errorName = @"NFCTransceiveTagResponseError";
+            break;
+        case NFCReaderTransceiveErrorSessionInvalidated:
+            errorName = @"NFCTransceiveSessionInvalidatedError";
+        case NFCTagCommandConfigurationErrorInvalidParameters:
+            errorName = @"NFCTagCommandConfigurationInvalidParametersError";
+            break;
+        case NFCReaderErrorUnsupportedFeature:
+            errorName = @"NFCUnsupportedFeatureError";
+            break;
+        case NFCReaderErrorInvalidParameter:
+            errorName = @"NFCInvalidParameterError";
+            break;
+        case NFCReaderErrorParameterOutOfBound:
+            errorName = @"NFCParameterOutOfBoundError";
+            break;
+        case NFCReaderErrorSecurityViolation:
+            errorName = @"NFCSecurityViolationError";
+            break;
+        default:
+            NSLog(@"Unexpected error: %@", error);
+            errorName = @"NFCUnexpectedError";
     }
-    return flutterError;
+    return [FlutterError
+            errorWithCode:errorName message:error.localizedDescription details:error.localizedFailureReason];
 }
 
 // MARK: NDEF operations
@@ -227,10 +234,11 @@ static NSString *requireTagReaderSession = @"required";
                 if (status == NFCNDEFStatusReadWrite) {
                     [self->lastNDEFTag writeNDEF:message completionHandler:^(NSError * _Nullable error) {
                         if (error != nil) {
-                            NSDictionary *context = @{
+                            // Invalidate the session with an error message
+                            [self->ndefSession invalidateSessionWithErrorMessage:[error localizedDescription]];
+                            completionHandler([self mapError:error context:@{
                                 @"capacity": [NSNumber numberWithUnsignedInteger:capacity],
-                            };
-                            completionHandler([self mapError:error context:context]);
+                            }]);
                         } else {
                             // Successfully wrote data to the tag
                             completionHandler(nil);
