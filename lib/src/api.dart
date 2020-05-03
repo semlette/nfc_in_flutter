@@ -113,6 +113,7 @@ class NFC {
       () => _startReadingNDEF(
           once, message, readerMode, iosTagReaderPreference, iosPollingOptions),
       once: once,
+      throwOnUserCancel: throwOnUserCancel,
     );
   }
 
@@ -125,6 +126,10 @@ class NFC {
 
     /// once will stop reading after the first tag has been read.
     bool once = false,
+
+    /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
+    /// should be thrown on iOS when the user clicks Cancel/Done.
+    bool throwOnUserCancel = true,
 
     /// message specify the message shown to the user when the NFC modal is
     /// open
@@ -146,14 +151,18 @@ class NFC {
           "When [iosTagReaderPreference] is not set to `IOSTagReaderPreference.none`, [iosPollingOptions] must not be `null`");
     }
 
-    if (Core.tagStream == null) {
-      Core.createTagStream();
-    }
+    Stream<NDEFMessage> stream = Core.startReading(
+      (stream) => _streamWithNDEFMessages(stream),
+      () => _startReadingNDEF(
+          once, message, readerMode, iosTagReaderPreference, iosPollingOptions),
+      once: false,
+      throwOnUserCancel: throwOnUserCancel,
+    );
 
     StreamController<NDEFTag> controller = StreamController();
 
     int writes = 0;
-    StreamSubscription<NFCMessage> stream = Core.tagStream.listen((msg) async {
+    StreamSubscription<NFCMessage> subscription = stream.listen((msg) async {
       NDEFMessage message = msg;
       if (message.tag.writable) {
         try {
@@ -174,18 +183,8 @@ class NFC {
       return controller.close();
     });
     controller.onCancel = () {
-      stream.cancel();
+      subscription.cancel();
     };
-
-    try {
-      _startReadingNDEF(
-          once, message, readerMode, iosTagReaderPreference, iosPollingOptions);
-    } on PlatformException catch (err) {
-      if (err.code == "NFCMultipleReaderModes") {
-        throw NFCMultipleReaderModesException();
-      }
-      throw err;
-    }
 
     return controller.stream;
   }
