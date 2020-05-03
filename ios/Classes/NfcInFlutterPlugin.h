@@ -23,7 +23,7 @@
 
 - (void)writeNDEFMessage:(NFCNDEFMessage * _Nonnull)message completionHandler:(void (^ _Nonnull) (FlutterError * _Nullable error))completionHandler API_AVAILABLE(ios(13.0));
 
-- (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString * _Nonnull)identifier message:(NFCNDEFMessage * _Nonnull)message API_AVAILABLE(ios(11.0));
+- (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString * _Nonnull)identifier  raw:(NSData * _Nullable)rawIdentifier message:(NFCNDEFMessage * _Nonnull)message API_AVAILABLE(ios(11.0));
 
 - (NFCNDEFMessage * _Nonnull)formatNDEFMessageWithDictionary:(NSDictionary * _Nonnull)dictionary API_AVAILABLE(ios(13.0));
 

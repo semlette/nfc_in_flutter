@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:nfc_in_flutter/nfc_in_flutter.dart';
 
 import './core.dart';
@@ -40,6 +41,7 @@ class NFC {
         }
 
         records.add(NDEFRecord._internal(
+          record["identifier"],
           record["id"],
           record["payload"],
           record["type"],
@@ -49,7 +51,8 @@ class NFC {
         ));
       }
 
-      return NDEFMessage._internal(tag["id"], tag["type"], records);
+      return NDEFMessage._internal(
+          tag["identifier"], tag["id"], tag["type"], records);
     });
   }
 
@@ -304,14 +307,17 @@ abstract class NFCTag {
 
 class NDEFMessage implements NFCMessage {
   final String id;
+  final Uint8List identifier;
   String type;
   final List<NDEFRecord> records;
 
-  NDEFMessage.withRecords(this.records, {this.id});
+  NDEFMessage.withRecords(this.records, {this.id, this.identifier});
 
-  NDEFMessage(this.type, this.records) : id = null;
+  NDEFMessage(this.type, this.records)
+      : id = null,
+        this.identifier = null;
 
-  NDEFMessage._internal(this.id, this.type, this.records);
+  NDEFMessage._internal(this.identifier, this.id, this.type, this.records);
 
   // payload returns the payload of the first non-empty record. If all records
   // are empty it will return null.
@@ -364,6 +370,7 @@ enum NFCTypeNameFormat {
 
 class NDEFRecord {
   final String id;
+  final Uint8List identifier;
   final String payload;
   final String type;
   final String data;
@@ -376,6 +383,7 @@ class NDEFRecord {
 
   NDEFRecord.empty()
       : id = null,
+        identifier = null,
         type = "",
         payload = "",
         data = "",
@@ -384,6 +392,7 @@ class NDEFRecord {
 
   NDEFRecord.plain(String data)
       : id = null,
+        identifier = null,
         type = "text/plain",
         payload = data,
         this.data = data,
@@ -392,6 +401,7 @@ class NDEFRecord {
 
   NDEFRecord.type(this.type, String payload)
       : id = null,
+        identifier = null,
         this.payload = payload,
         data = payload,
         tnf = NFCTypeNameFormat.mime_media,
@@ -399,6 +409,7 @@ class NDEFRecord {
 
   NDEFRecord.text(String message, {languageCode = "en"})
       : id = null,
+        identifier = null,
         data = message,
         payload = message,
         type = "T",
@@ -407,6 +418,7 @@ class NDEFRecord {
 
   NDEFRecord.uri(Uri uri)
       : id = null,
+        identifier = null,
         data = uri.toString(),
         payload = uri.toString(),
         type = "U",
@@ -415,6 +427,7 @@ class NDEFRecord {
 
   NDEFRecord.absoluteUri(Uri uri)
       : id = null,
+        identifier = null,
         data = uri.toString(),
         payload = uri.toString(),
         type = "",
@@ -423,6 +436,7 @@ class NDEFRecord {
 
   NDEFRecord.external(this.type, String payload)
       : id = null,
+        identifier = null,
         data = payload,
         this.payload = payload,
         tnf = NFCTypeNameFormat.external,
@@ -430,14 +444,15 @@ class NDEFRecord {
 
   NDEFRecord.custom({
     this.id,
+    this.identifier,
     this.payload = "",
     this.type = "",
     this.tnf = NFCTypeNameFormat.unknown,
     this.languageCode,
   }) : this.data = payload;
 
-  NDEFRecord._internal(
-      this.id, this.payload, this.type, this.tnf, this.data, this.languageCode);
+  NDEFRecord._internal(this.identifier, this.id, this.payload, this.type,
+      this.tnf, this.data, this.languageCode);
 
   Map<String, dynamic> _toMap() {
     String tnf;

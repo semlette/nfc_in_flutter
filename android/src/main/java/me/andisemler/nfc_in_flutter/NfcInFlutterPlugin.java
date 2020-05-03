@@ -387,9 +387,9 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) {
         final Map<String, Object> result = new HashMap<>();
-        List<Map<String, String>> records = new ArrayList<>();
+        List<Map<String, Object>> records = new ArrayList<>();
         for (NdefRecord record : message.getRecords()) {
-            Map<String, String> recordMap = new HashMap<>();
+            Map<String, Object> recordMap = new HashMap<>();
             byte[] recordPayload = record.getPayload();
             Charset charset = StandardCharsets.UTF_8;
             short tnf = record.getTnf();
@@ -525,6 +525,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             }
 
             recordMap.put("id", new String(record.getId(), StandardCharsets.UTF_8));
+            recordMap.put("identifier", record.getId());
             recordMap.put("type", new String(record.getType(), StandardCharsets.UTF_8));
 
             String tnfValue;
@@ -558,6 +559,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
         // Fancy string formatting snippet is from
         // https://gist.github.com/luixal/5768921#gistcomment-1788815
         result.put("id", String.format("%0" + (idByteArray.length * 2) + "X", new BigInteger(1, idByteArray)));
+        result.put("identifier", idByteArray);
         result.put("message_type", "ndef");
         result.put("type", ndef.getType());
         result.put("records", records);

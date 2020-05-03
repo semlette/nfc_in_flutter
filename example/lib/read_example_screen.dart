@@ -15,14 +15,14 @@ class _ReadExampleScreenState extends State<ReadExampleScreen> {
       _stream = NFC
           .readNDEF(
         once: true,
-        iosTagReaderPreference: IOSTagReaderPreference.preferred,
+        iosTagReaderPreference: IOSTagReaderPreference.none,
       )
           .listen((NDEFMessage message) {
         print(
-            "Read NDEF message '${message.id}' with ${message.records.length} records");
+            "Read NDEF message '${message.identifier}' with ${message.records.length} records");
         for (NDEFRecord record in message.records) {
           print(
-              "Record '${record.id ?? "[NO ID]"}' with TNF '${record.tnf}', type '${record.type}', payload '${record.payload}' and data '${record.data}' and language code '${record.languageCode}'");
+              "Record '${record.identifier ?? "[NO ID]"}' with TNF '${record.tnf}', type '${record.type}', payload '${record.payload}' and data '${record.data}' and language code '${record.languageCode}'");
         }
       });
     });

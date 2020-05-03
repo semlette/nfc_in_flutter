@@ -264,7 +264,7 @@ static NSString *requireTagReaderSession = @"required";
     //   ]
     // }
     for (NFCNDEFMessage* message in messages) {
-        NSDictionary *result = [self formatMessageWithIdentifier:@"" message:message];
+        NSDictionary *result = [self formatMessageWithIdentifier:@"" raw:nil message:message];
         dispatch_async(dispatch_get_main_queue(), ^{
             if (self->events != nil) {
                self->events(result);
@@ -303,7 +303,7 @@ static NSString *requireTagReaderSession = @"required";
                     return;
                 }
                 
-                NSDictionary *result = [self formatMessageWithIdentifier:@"" message:message];
+                NSDictionary *result = [self formatMessageWithIdentifier:@"" raw:nil message:message];
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (self->events != nil) {
                         self->events(result);
@@ -339,7 +339,7 @@ static NSString *requireTagReaderSession = @"required";
 
 // formatMessageWithIdentifier turns a NFCNDEFMessage into a NSDictionary that
 // is ready to be sent to Flutter
-- (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString * _Nonnull)identifier message:(NFCNDEFMessage * _Nonnull)message {
+- (NSDictionary * _Nonnull)formatMessageWithIdentifier:(NSString * _Nonnull)identifier raw:(NSData * _Nullable)rawIdentifier message:(NFCNDEFMessage * _Nonnull)message {
     NSMutableArray<NSDictionary *> *records = [[NSMutableArray alloc] initWithCapacity:message.records.count];
     for (NFCNDEFPayload *payload in message.records) {
         NSString *type;
@@ -534,17 +534,20 @@ static NSString *requireTagReaderSession = @"required";
                                        payloadData, @"payload",
                                        data, @"data",
                                        identifier, @"id",
+                                       [FlutterStandardTypedData typedDataWithBytes:payload.identifier], @"identifier",
                                        tnf, @"tnf", nil];
         if (languageCode != nil) {
-            [record setObject:languageCode forKey:@"languageCode"];
+            record[@"languageCode"] = languageCode;
         }
         [records addObject:record];
     }
-    NSDictionary *result = @{
-        @"id": identifier,
-        @"message_type": @"ndef",
-        @"records": records,
-    };
+    NSMutableDictionary *result = [NSMutableDictionary dictionary];
+    result[@"id"] = identifier;
+    result[@"message_type"] = @"ndef";
+    result[@"records"] = records;
+    if (rawIdentifier != nil) {
+        result[@"identifier"] = [FlutterStandardTypedData typedDataWithBytes:rawIdentifier];
+    }
     return result;
 }
 
@@ -650,10 +653,12 @@ static NSString *requireTagReaderSession = @"required";
         lastNDEFTag = (id<NFCNDEFTag>) tag;
         
         // Get the tag identifier if possible
-        NSString *identifier = @"";
+        NSString *stringIdentifier = @"";
+        NSData *identifier = nil;
         if ([tag conformsToProtocol:@protocol(NFCISO15693Tag)]) {
             id<NFCISO15693Tag> iso15693Tag = (id<NFCISO15693Tag>) tag;
-            identifier = [iso15693Tag.identifier hexadecimalString];
+            identifier = iso15693Tag.identifier;
+            stringIdentifier = [iso15693Tag.identifier hexadecimalString];
         }
         
         [session connectToTag:tag completionHandler:^(NSError *error) {
@@ -671,7 +676,7 @@ static NSString *requireTagReaderSession = @"required";
                     return;
                 }
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    self->events([self formatMessageWithIdentifier:identifier message:message]);
+                    self->events([self formatMessageWithIdentifier:stringIdentifier raw:identifier message:message]);
                 });
             }];
         }];
