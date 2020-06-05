@@ -62,11 +62,12 @@ class NFC {
     });
   }
 
-  static void _startReadingNDEF(
-      bool once, String alertMessage, NFCReaderMode readerMode) {
+  static void _startReadingNDEF(bool once, bool readForWrite,
+      String alertMessage, NFCReaderMode readerMode) {
     // Start reading
     Map arguments = {
       "scan_once": once,
+      "read_for_write": readForWrite,
       "alert_message": alertMessage,
       "reader_mode": readerMode.name,
     }..addAll(readerMode._options);
@@ -75,24 +76,25 @@ class NFC {
 
   /// readNDEF starts listening for NDEF formatted tags. Any non-NDEF formatted
   /// tags will be filtered out.
-  static Stream<NDEFMessage> readNDEF({
-    /// once will stop reading after the first tag has been read.
-    bool once = false,
+  static Stream<NDEFMessage> readNDEF(
+      {
 
-    /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
-    /// should be thrown on iOS when the user clicks Cancel/Done.
-    bool throwOnUserCancel = true,
+      /// once will stop reading after the first tag has been read.
+      bool once = false,
 
-    /// alertMessage sets the message on the iOS NFC modal.
-    String alertMessage = "",
+      /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
+      /// should be thrown on iOS when the user clicks Cancel/Done.
+      bool throwOnUserCancel = true,
 
-    /// readerMode specifies which mode the reader should use. By default it
-    /// will use the normal mode, which scans for tags normally without
-    /// support for peer-to-peer operations, such as emulated host cards.
-    ///
-    /// This is ignored on iOS as it only has one reading mode.
-    NFCReaderMode readerMode = const NFCNormalReaderMode(),
-  }) {
+      /// alertMessage sets the message on the iOS NFC modal.
+      String alertMessage = "",
+
+      /// readerMode specifies which mode the reader should use. By default it
+      /// will use the normal mode, which scans for tags normally without
+      /// support for peer-to-peer operations, such as emulated host cards.
+      ///
+      /// This is ignored on iOS as it only has one reading mode.
+      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
     if (_tagStream == null) {
       _createTagStream();
     }
@@ -125,11 +127,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(
-        once,
-        alertMessage,
-        const NFCNormalReaderMode(),
-      );
+      _startReadingNDEF(once, false, alertMessage, const NFCNormalReaderMode());
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
@@ -148,21 +146,20 @@ class NFC {
   /// the stream is active.
   /// If you only want to write to the first tag, you can set the [once]
   /// argument to `true` and use the `.first` method on the returned `Stream`.
-  static Stream<NDEFTag> writeNDEF(
-    NDEFMessage newMessage, {
+  static Stream<NDEFTag> writeNDEF(NDEFMessage newMessage,
+      {
 
-    /// once will stop reading after the first tag has been read.
-    bool once = false,
+      /// once will stop reading after the first tag has been read.
+      bool once = false,
 
-    /// message specify the message shown to the user when the NFC modal is
-    /// open
-    ///
-    /// This is ignored on Android as it does not have NFC modal
-    String message = "",
+      /// message specify the message shown to the user when the NFC modal is
+      /// open
+      ///
+      /// This is ignored on Android as it does not have NFC modal
+      String message = "",
 
-    /// readerMode specifies which mode the reader should use.
-    NFCReaderMode readerMode = const NFCNormalReaderMode(),
-  }) {
+      /// readerMode specifies which mode the reader should use.
+      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
     if (_tagStream == null) {
       _createTagStream();
     }
@@ -207,7 +204,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, message, readerMode);
+      _startReadingNDEF(once, true, message, readerMode);
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
