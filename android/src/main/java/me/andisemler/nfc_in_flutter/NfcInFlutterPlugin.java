@@ -42,10 +42,12 @@ import io.flutter.plugin.common.PluginRegistry.Registrar;
 public class NfcInFlutterPlugin implements MethodCallHandler,
         EventChannel.StreamHandler,
         PluginRegistry.NewIntentListener,
-        NfcAdapter.ReaderCallback {
+        NfcAdapter.ReaderCallback,
+        NfcAdapter.OnTagRemovedListener {
 
     private static final String NORMAL_READER_MODE = "normal";
     private static final String DISPATCH_READER_MODE = "dispatch";
+    private static final int ONE_SECOND = 1000;
     private final int DEFAULT_READER_FLAGS = NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_NFC_B | NfcAdapter.FLAG_READER_NFC_F | NfcAdapter.FLAG_READER_NFC_V;
     private static final String LOG_TAG = "NfcInFlutterPlugin";
 
@@ -55,6 +57,11 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     private String currentReaderMode = null;
     private Tag lastTag = null;
+    private boolean writeIgnore = false;
+
+    @Override
+    public void onTagRemoved() {
+    }
 
     /**
      * Plugin registration.
@@ -84,6 +91,13 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                     return;
                 }
                 HashMap args = (HashMap) call.arguments;
+                Boolean readForWrite = (Boolean) args.get("read_for_write");
+                if (readForWrite != null && readForWrite) {
+                    writeIgnore = true;
+                } else {
+                    writeIgnore = false;
+                }
+
                 String readerMode = (String) args.get("reader_mode");
                 if (readerMode == null) {
                     result.error("MissingReaderMode", "startNDEFReading was called without a reader mode", "");
@@ -205,6 +219,9 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                     Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
                 }
                 eventSuccess(formatNDEFMessageToResult(ndef, message));
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N && !writeIgnore) {
+                    adapter.ignore(tag, ONE_SECOND, this, null);
+                }
             } catch (IOException e) {
                 Map<String, Object> details = new HashMap<>();
                 details.put("fatal", true);
@@ -620,6 +637,12 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             } finally {
                 try {
                     ndef.close();
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N && writeIgnore) {
+                        adapter = NfcAdapter.getDefaultAdapter(activity);
+                        if (adapter != null) {
+                            adapter.ignore(lastTag, ONE_SECOND, this, null);
+                        }
+                    }
                 } catch (IOException e) {
                     Log.e(LOG_TAG, "close NDEF tag error: " + e.getMessage());
                 }

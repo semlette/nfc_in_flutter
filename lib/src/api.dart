@@ -8,7 +8,7 @@ import './exceptions.dart';
 class NFC {
   static MethodChannel _channel = MethodChannel("nfc_in_flutter");
   static const EventChannel _eventChannel =
-      const EventChannel("nfc_in_flutter/tags");
+  const EventChannel("nfc_in_flutter/tags");
 
   static Stream<dynamic> _tagStream;
 
@@ -61,10 +61,11 @@ class NFC {
   }
 
   static void _startReadingNDEF(
-      bool once, String alertMessage, NFCReaderMode readerMode) {
+      bool once, bool readForWrite, String alertMessage, NFCReaderMode readerMode) {
     // Start reading
     Map arguments = {
       "scan_once": once,
+      "read_for_write": readForWrite,
       "alert_message": alertMessage,
       "reader_mode": readerMode.name,
     }..addAll(readerMode._options);
@@ -76,22 +77,22 @@ class NFC {
   static Stream<NDEFMessage> readNDEF(
       {
 
-      /// once will stop reading after the first tag has been read.
-      bool once = false,
+        /// once will stop reading after the first tag has been read.
+        bool once = false,
 
-      /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
-      /// should be thrown on iOS when the user clicks Cancel/Done.
-      bool throwOnUserCancel = true,
+        /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
+        /// should be thrown on iOS when the user clicks Cancel/Done.
+        bool throwOnUserCancel = true,
 
-      /// alertMessage sets the message on the iOS NFC modal.
-      String alertMessage = "",
+        /// alertMessage sets the message on the iOS NFC modal.
+        String alertMessage = "",
 
-      /// readerMode specifies which mode the reader should use. By default it
-      /// will use the normal mode, which scans for tags normally without
-      /// support for peer-to-peer operations, such as emulated host cards.
-      ///
-      /// This is ignored on iOS as it only has one reading mode.
-      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
+        /// readerMode specifies which mode the reader should use. By default it
+        /// will use the normal mode, which scans for tags normally without
+        /// support for peer-to-peer operations, such as emulated host cards.
+        ///
+        /// This is ignored on iOS as it only has one reading mode.
+        NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
     if (_tagStream == null) {
       _createTagStream();
     }
@@ -124,7 +125,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, alertMessage, const NFCNormalReaderMode());
+      _startReadingNDEF(once, false, alertMessage, const NFCNormalReaderMode());
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
@@ -146,17 +147,17 @@ class NFC {
   static Stream<NDEFTag> writeNDEF(NDEFMessage newMessage,
       {
 
-      /// once will stop reading after the first tag has been read.
-      bool once = false,
+        /// once will stop reading after the first tag has been read.
+        bool once = false,
 
-      /// message specify the message shown to the user when the NFC modal is
-      /// open
-      ///
-      /// This is ignored on Android as it does not have NFC modal
-      String message = "",
+        /// message specify the message shown to the user when the NFC modal is
+        /// open
+        ///
+        /// This is ignored on Android as it does not have NFC modal
+        String message = "",
 
-      /// readerMode specifies which mode the reader should use.
-      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
+        /// readerMode specifies which mode the reader should use.
+        NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
     if (_tagStream == null) {
       _createTagStream();
     }
@@ -201,7 +202,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, message, readerMode);
+      _startReadingNDEF(once, true, message, readerMode);
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
