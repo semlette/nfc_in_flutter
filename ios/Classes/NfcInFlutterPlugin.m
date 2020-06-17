@@ -156,25 +156,7 @@
         NSString* payloadData;
         NSString* data;
         NSString* languageCode;
-        if ([@"T" isEqualToString:type]) {
-            // Remove the first byte from the payload
-            payloadData = [[NSString alloc]
-                    initWithData:[payload.payload
-                                  subdataWithRange:NSMakeRange(1, payload.payload.length-1)]
-                    encoding:NSUTF8StringEncoding];
-            
-            const unsigned char* bytes = [payload.payload bytes];
-            int languageCodeLength = bytes[0] & 0x3f;
-            languageCode = [[NSString alloc]
-                            initWithData:[payload.payload
-                                          subdataWithRange:NSMakeRange(1, languageCodeLength)]
-                            encoding:NSUTF8StringEncoding];
-            // Exclude the language code from the data
-            data = [[NSString alloc]
-                   initWithData:[payload.payload
-                                 subdataWithRange:NSMakeRange(languageCodeLength+1, payload.payload.length-languageCodeLength-1)]
-                   encoding:NSUTF8StringEncoding];
-        } else if ([@"U" isEqualToString:type]) {
+        if ([@"U" isEqualToString:type]) {
             NSString* url;
             const unsigned char* bytes = [payload.payload bytes];
             int prefixByte = bytes[0];

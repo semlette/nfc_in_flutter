@@ -422,11 +422,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                         break;
                 }
                 recordMap.put("payload", url + new String(recordPayload, 1, recordPayload.length - 1, charset));
-            } else if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
-                int languageCodeLength = (recordPayload[0] & 0x3f) + 1;
-                recordMap.put("payload", new String(recordPayload, 1, recordPayload.length - 1, charset));
-                recordMap.put("languageCode", new String(recordPayload, 1, languageCodeLength - 1, charset));
-                recordMap.put("data", new String(recordPayload, languageCodeLength, recordPayload.length - languageCodeLength, charset));
             } else {
                 recordMap.put("payload", new String(recordPayload, charset));
                 recordMap.put("data", new String(recordPayload, charset));
