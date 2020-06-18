@@ -46,7 +46,7 @@
         result([NSNumber numberWithBool:[wrapper isEnabled]]);
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
         NSDictionary* args = call.arguments;
-        [wrapper startReading:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
+        [wrapper startReading:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"] provideRawValue: [args[@"provide_raw_payload"] boolValue]];
         result(nil);
     } else if ([@"writeNDEF" isEqualToString:call.method]) {
         NSDictionary* args = call.arguments;
@@ -156,7 +156,25 @@
         NSString* payloadData;
         NSString* data;
         NSString* languageCode;
-        if ([@"U" isEqualToString:type]) {
+        if ([@"T" isEqualToString:type]) {
+            // Remove the first byte from the payload
+            payloadData = [[NSString alloc]
+                    initWithData:[payload.payload
+                                  subdataWithRange:NSMakeRange(1, payload.payload.length-1)]
+                    encoding:NSUTF8StringEncoding];
+
+            const unsigned char* bytes = [payload.payload bytes];
+            int languageCodeLength = bytes[0] & 0x3f;
+            languageCode = [[NSString alloc]
+                            initWithData:[payload.payload
+                                          subdataWithRange:NSMakeRange(1, languageCodeLength)]
+                            encoding:NSUTF8StringEncoding];
+            // Exclude the language code from the data
+            data = [[NSString alloc]
+                   initWithData:[payload.payload
+                                 subdataWithRange:NSMakeRange(languageCodeLength+1, payload.payload.length-languageCodeLength-1)]
+                   encoding:NSUTF8StringEncoding];
+        } else if ([@"U" isEqualToString:type]) {
             NSString* url;
             const unsigned char* bytes = [payload.payload bytes];
             int prefixByte = bytes[0];
@@ -326,6 +344,12 @@
         if (languageCode != nil) {
             [record setObject:languageCode forKey:@"languageCode"];
         }
+        if (provideRawValue) {
+            NSString* rawPayload = [[NSString alloc]
+            initWithData:payload.payload
+            encoding:NSUTF8StringEncoding];
+            [record setObject:rawPayload forKey:@"rawPayload"];
+        }
         [records addObject:record];
     }
     NSDictionary* result = @{
@@ -419,7 +443,8 @@
     return self;
 }
     
-- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage {
+- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage provideRawValue: (BOOL)provideRawValue {
+    self->provideRawValue = provideRawValue;
     if (session == nil) {
         session = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:dispatchQueue invalidateAfterFirstRead: once];
         session.alertMessage = alertMessage;
@@ -583,7 +608,7 @@
     // https://knowyourmeme.com/photos/1483348-bugs-bunnys-no
     return NO;
 }
-- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage {
+- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage provideRawValue: (BOOL)provideRawValue{
     return;
 }
 

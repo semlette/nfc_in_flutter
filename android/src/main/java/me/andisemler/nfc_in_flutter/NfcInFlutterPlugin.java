@@ -55,6 +55,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     private String currentReaderMode = null;
     private Tag lastTag = null;
+    private boolean provideRawPayload = false;
 
     /**
      * Plugin registration.
@@ -89,6 +90,8 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                     result.error("MissingReaderMode", "startNDEFReading was called without a reader mode", "");
                     return;
                 }
+
+                provideRawPayload = Boolean.TRUE.equals((Boolean) args.get("provide_raw_payload"));
 
                 if (currentReaderMode != null && !readerMode.equals(currentReaderMode)) {
                     // Throw error if the user tries to start reading with another reading mode
@@ -305,6 +308,9 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
                 charset = ((recordPayload[0] & 128) == 0) ? StandardCharsets.UTF_8 : StandardCharsets.UTF_16;
             }
+            if (provideRawPayload) {
+                recordMap.put("rawPayload", new String(recordPayload));
+            }
 
             // If the record's tnf is well known and the RTD is set to URI,
             // the URL prefix should be added to the payload
@@ -422,6 +428,11 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                         break;
                 }
                 recordMap.put("payload", url + new String(recordPayload, 1, recordPayload.length - 1, charset));
+            } else if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
+                int languageCodeLength = (recordPayload[0] & 0x3f) + 1;
+                recordMap.put("payload", new String(recordPayload, 1, recordPayload.length - 1, charset));
+                recordMap.put("languageCode", new String(recordPayload, 1, languageCodeLength - 1, charset));
+                recordMap.put("data", new String(recordPayload, languageCodeLength, recordPayload.length - languageCodeLength, charset));
             } else {
                 recordMap.put("payload", new String(recordPayload, charset));
                 recordMap.put("data", new String(recordPayload, charset));
