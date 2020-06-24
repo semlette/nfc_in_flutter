@@ -2,7 +2,7 @@
 #import <CoreNFC/CoreNFC.h>
 
 @protocol NFCWrapper <FlutterStreamHandler>
-- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage provideRawValue:(BOOL)provideRawValue;
+- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage;
 - (BOOL)isEnabled;
 - (void)writeToTag:(NSDictionary* _Nonnull)data completionHandler:(void (^_Nonnull) (FlutterError * _Nullable error))completionHandler;
 @end
@@ -18,7 +18,6 @@ API_AVAILABLE(ios(11))
 @interface NFCWrapperBase : NSObject <FlutterStreamHandler> {
     FlutterEventSink events;
     NFCNDEFReaderSession* session;
-    BOOL provideRawValue;
 }
 - (void)readerSession:(nonnull NFCNDEFReaderSession *)session didInvalidateWithError:(nonnull NSError *)error;
 

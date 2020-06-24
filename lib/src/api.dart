@@ -62,14 +62,13 @@ class NFC {
     });
   }
 
-  static void _startReadingNDEF(bool once, String alertMessage,
-      NFCReaderMode readerMode, bool provideRawPayload) {
+  static void _startReadingNDEF(
+      bool once, String alertMessage, NFCReaderMode readerMode) {
     // Start reading
     Map arguments = {
       "scan_once": once,
       "alert_message": alertMessage,
       "reader_mode": readerMode.name,
-      "provide_raw_payload": provideRawPayload,
     }..addAll(readerMode._options);
     _channel.invokeMethod("startNDEFReading", arguments);
   }
@@ -93,10 +92,6 @@ class NFC {
     ///
     /// This is ignored on iOS as it only has one reading mode.
     NFCReaderMode readerMode = const NFCNormalReaderMode(),
-
-    /// turning provideRawPayload to true will cause the library to provide the
-    /// raw nfc payload along with the parsed data
-    bool provideRawPayload = false,
   }) {
     if (_tagStream == null) {
       _createTagStream();
@@ -134,7 +129,6 @@ class NFC {
         once,
         alertMessage,
         const NFCNormalReaderMode(),
-        provideRawPayload,
       );
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
@@ -168,10 +162,6 @@ class NFC {
 
     /// readerMode specifies which mode the reader should use.
     NFCReaderMode readerMode = const NFCNormalReaderMode(),
-
-    /// turning provideRawPayload to true will cause the library to provide the
-    /// raw nfc payload along with the parsed data
-    bool provideRawPayload = false,
   }) {
     if (_tagStream == null) {
       _createTagStream();
@@ -217,7 +207,7 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, message, readerMode, provideRawPayload);
+      _startReadingNDEF(once, message, readerMode);
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
