@@ -46,7 +46,7 @@
         result([NSNumber numberWithBool:[wrapper isEnabled]]);
     } else if ([@"startNDEFReading" isEqualToString:call.method]) {
         NSDictionary* args = call.arguments;
-        [wrapper startReading:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"] provideRawValue: [args[@"provide_raw_payload"] boolValue]];
+        [wrapper startReading:[args[@"scan_once"] boolValue] alertMessage:args[@"alert_message"]];
         result(nil);
     } else if ([@"writeNDEF" isEqualToString:call.method]) {
         NSDictionary* args = call.arguments;
@@ -337,12 +337,11 @@
         if (languageCode != nil) {
             [record setObject:languageCode forKey:@"languageCode"];
         }
-        if (provideRawValue) {
-            NSString* rawPayload = [[NSString alloc]
-            initWithData:payload.payload
-            encoding:NSUTF8StringEncoding];
-            [record setObject:rawPayload forKey:@"rawPayload"];
-        }
+        NSString* rawPayload = [[NSString alloc]
+        initWithData:payload.payload
+        encoding:NSUTF8StringEncoding];
+        [record setObject:rawPayload forKey:@"rawPayload"];
+
         [records addObject:record];
     }
     NSDictionary* result = @{
@@ -436,9 +435,7 @@
     return self;
 }
     
-
-- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage provideRawValue: (BOOL)provideRawValue {
-    self->provideRawValue = provideRawValue;
+- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage {
     if (self->session == nil) {
         self->session = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:self->dispatchQueue invalidateAfterFirstRead: once];
         self->session.alertMessage = alertMessage;
@@ -605,7 +602,7 @@
     // https://knowyourmeme.com/photos/1483348-bugs-bunnys-no
     return NO;
 }
-- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage provideRawValue: (BOOL)provideRawValue{
+- (void)startReading:(BOOL)once alertMessage:(NSString* _Nonnull)alertMessage {
     return;
 }
 

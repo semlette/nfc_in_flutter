@@ -55,7 +55,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     private String currentReaderMode = null;
     private Tag lastTag = null;
-    private boolean provideRawPayload = false;
 
     /**
      * Plugin registration.
@@ -90,8 +89,6 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
                     result.error("MissingReaderMode", "startNDEFReading was called without a reader mode", "");
                     return;
                 }
-
-                provideRawPayload = Boolean.TRUE.equals((Boolean) args.get("provide_raw_payload"));
 
                 if (currentReaderMode != null && !readerMode.equals(currentReaderMode)) {
                     // Throw error if the user tries to start reading with another reading mode
@@ -308,9 +305,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
                 charset = ((recordPayload[0] & 128) == 0) ? StandardCharsets.UTF_8 : StandardCharsets.UTF_16;
             }
-            if (provideRawPayload) {
-                recordMap.put("rawPayload", new String(recordPayload));
-            }
+            recordMap.put("rawPayload", new String(recordPayload));
 
             // If the record's tnf is well known and the RTD is set to URI,
             // the URL prefix should be added to the payload
