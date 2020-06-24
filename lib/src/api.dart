@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:core';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
@@ -375,9 +376,9 @@ class NDEFRecord {
   /// null.
   final String languageCode;
 
-  /// rawPayload contains the raw payload if the the reader was started with
-  /// provideRawPayload set to true. Otherwise it will be null.
-  final String rawPayload;
+  /// rawPayload contains the raw payload provided by the reader.
+  /// It will only be set when reading NDEF tags. Otherwise it will be null.
+  final Uint8List rawPayload;
 
   NDEFRecord.empty()
       : id = null,

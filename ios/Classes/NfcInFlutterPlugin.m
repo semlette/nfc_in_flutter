@@ -337,10 +337,8 @@
         if (languageCode != nil) {
             [record setObject:languageCode forKey:@"languageCode"];
         }
-        NSString* rawPayload = [[NSString alloc]
-        initWithData:payload.payload
-        encoding:NSUTF8StringEncoding];
-        [record setObject:rawPayload forKey:@"rawPayload"];
+
+        [record setObject:[FlutterStandardTypedData typedDataWithBytes:payload.payload] forKey:@"rawPayload"];
 
         [records addObject:record];
     }
