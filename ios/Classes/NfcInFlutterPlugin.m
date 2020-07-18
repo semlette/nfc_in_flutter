@@ -155,7 +155,7 @@
                     initWithData:[payload.payload
                                   subdataWithRange:NSMakeRange(1, payload.payload.length-1)]
                     encoding:NSUTF8StringEncoding];
-            
+
             const unsigned char* bytes = [payload.payload bytes];
             int languageCodeLength = bytes[0] & 0x3f;
             languageCode = [[NSString alloc]
@@ -337,6 +337,9 @@
         if (languageCode != nil) {
             [record setObject:languageCode forKey:@"languageCode"];
         }
+
+        [record setObject:[FlutterStandardTypedData typedDataWithBytes:payload.payload] forKey:@"rawPayload"];
+
         [records addObject:record];
     }
     NSDictionary* result = @{

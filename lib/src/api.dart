@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:core';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
@@ -53,6 +54,7 @@ class NFC {
           tnf,
           record["data"],
           record["languageCode"],
+          record["rawPayload"],
         ));
       }
 
@@ -73,25 +75,24 @@ class NFC {
 
   /// readNDEF starts listening for NDEF formatted tags. Any non-NDEF formatted
   /// tags will be filtered out.
-  static Stream<NDEFMessage> readNDEF(
-      {
+  static Stream<NDEFMessage> readNDEF({
+    /// once will stop reading after the first tag has been read.
+    bool once = false,
 
-      /// once will stop reading after the first tag has been read.
-      bool once = false,
+    /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
+    /// should be thrown on iOS when the user clicks Cancel/Done.
+    bool throwOnUserCancel = true,
 
-      /// throwOnUserCancel decides if a [NFCUserCanceledSessionException] error
-      /// should be thrown on iOS when the user clicks Cancel/Done.
-      bool throwOnUserCancel = true,
+    /// alertMessage sets the message on the iOS NFC modal.
+    String alertMessage = "",
 
-      /// alertMessage sets the message on the iOS NFC modal.
-      String alertMessage = "",
-
-      /// readerMode specifies which mode the reader should use. By default it
-      /// will use the normal mode, which scans for tags normally without
-      /// support for peer-to-peer operations, such as emulated host cards.
-      ///
-      /// This is ignored on iOS as it only has one reading mode.
-      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
+    /// readerMode specifies which mode the reader should use. By default it
+    /// will use the normal mode, which scans for tags normally without
+    /// support for peer-to-peer operations, such as emulated host cards.
+    ///
+    /// This is ignored on iOS as it only has one reading mode.
+    NFCReaderMode readerMode = const NFCNormalReaderMode(),
+  }) {
     if (_tagStream == null) {
       _createTagStream();
     }
@@ -124,7 +125,11 @@ class NFC {
     };
 
     try {
-      _startReadingNDEF(once, alertMessage, const NFCNormalReaderMode());
+      _startReadingNDEF(
+        once,
+        alertMessage,
+        const NFCNormalReaderMode(),
+      );
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
         throw NFCMultipleReaderModesException();
@@ -143,20 +148,21 @@ class NFC {
   /// the stream is active.
   /// If you only want to write to the first tag, you can set the [once]
   /// argument to `true` and use the `.first` method on the returned `Stream`.
-  static Stream<NDEFTag> writeNDEF(NDEFMessage newMessage,
-      {
+  static Stream<NDEFTag> writeNDEF(
+    NDEFMessage newMessage, {
 
-      /// once will stop reading after the first tag has been read.
-      bool once = false,
+    /// once will stop reading after the first tag has been read.
+    bool once = false,
 
-      /// message specify the message shown to the user when the NFC modal is
-      /// open
-      ///
-      /// This is ignored on Android as it does not have NFC modal
-      String message = "",
+    /// message specify the message shown to the user when the NFC modal is
+    /// open
+    ///
+    /// This is ignored on Android as it does not have NFC modal
+    String message = "",
 
-      /// readerMode specifies which mode the reader should use.
-      NFCReaderMode readerMode = const NFCNormalReaderMode()}) {
+    /// readerMode specifies which mode the reader should use.
+    NFCReaderMode readerMode = const NFCNormalReaderMode(),
+  }) {
     if (_tagStream == null) {
       _createTagStream();
     }
@@ -360,13 +366,18 @@ class NDEFRecord {
   /// null.
   final String languageCode;
 
+  /// rawPayload contains the raw payload provided by the reader.
+  /// It will only be set when reading NDEF tags. Otherwise it will be null.
+  final Uint8List rawPayload;
+
   NDEFRecord.empty()
       : id = null,
         type = "",
         payload = "",
         data = "",
         tnf = NFCTypeNameFormat.empty,
-        languageCode = null;
+        languageCode = null,
+        rawPayload = null;
 
   NDEFRecord.plain(String data)
       : id = null,
@@ -374,14 +385,16 @@ class NDEFRecord {
         payload = data,
         this.data = data,
         tnf = NFCTypeNameFormat.mime_media,
-        languageCode = null;
+        languageCode = null,
+        rawPayload = null;
 
   NDEFRecord.type(this.type, String payload)
       : id = null,
         this.payload = payload,
         data = payload,
         tnf = NFCTypeNameFormat.mime_media,
-        languageCode = null;
+        languageCode = null,
+        rawPayload = null;
 
   NDEFRecord.text(String message, {languageCode = "en"})
       : id = null,
@@ -389,7 +402,8 @@ class NDEFRecord {
         payload = message,
         type = "T",
         tnf = NFCTypeNameFormat.well_known,
-        this.languageCode = languageCode;
+        this.languageCode = languageCode,
+        rawPayload = null;
 
   NDEFRecord.uri(Uri uri)
       : id = null,
@@ -397,7 +411,8 @@ class NDEFRecord {
         payload = uri.toString(),
         type = "U",
         tnf = NFCTypeNameFormat.well_known,
-        languageCode = null;
+        languageCode = null,
+        rawPayload = null;
 
   NDEFRecord.absoluteUri(Uri uri)
       : id = null,
@@ -405,14 +420,16 @@ class NDEFRecord {
         payload = uri.toString(),
         type = "",
         tnf = NFCTypeNameFormat.absolute_uri,
-        languageCode = null;
+        languageCode = null,
+        rawPayload = null;
 
   NDEFRecord.external(this.type, String payload)
       : id = null,
         data = payload,
         this.payload = payload,
         tnf = NFCTypeNameFormat.external,
-        languageCode = null;
+        languageCode = null,
+        rawPayload = null;
 
   NDEFRecord.custom({
     this.id,
@@ -420,10 +437,18 @@ class NDEFRecord {
     this.type = "",
     this.tnf = NFCTypeNameFormat.unknown,
     this.languageCode,
-  }) : this.data = payload;
+  })  : data = payload,
+        rawPayload = null;
 
   NDEFRecord._internal(
-      this.id, this.payload, this.type, this.tnf, this.data, this.languageCode);
+    this.id,
+    this.payload,
+    this.type,
+    this.tnf,
+    this.data,
+    this.languageCode,
+    this.rawPayload,
+  );
 
   Map<String, dynamic> _toMap() {
     String tnf;
