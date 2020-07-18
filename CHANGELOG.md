@@ -1,7 +1,7 @@
 ## 2.0.5
 
 -   Better reading reliability on iOS
--   New property `rawPayload` on `NDEFRecord` which contains the full, unedited record payload.
+-   New property `rawPayload` on `NDEFRecord` which contains the full, unedited record payload (credit to GitHub user @laurensfischer).
 
 ## 2.0.4
 
