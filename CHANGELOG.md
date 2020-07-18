@@ -1,3 +1,8 @@
+## 2.0.5
+
+-   Better reading reliability on iOS
+-   New property `rawPayload` on `NDEFRecord` which contains the full, unedited record payload.
+
 ## 2.0.4
 
 -   CoreNFC is now a `weak_framework`. This should fix a crash on iOS devices that doesn't support NFC. (credit to GitHub user @mxpazyj)
