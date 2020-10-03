@@ -224,6 +224,13 @@ class NFC {
     assert(supported is bool);
     return supported as bool;
   }
+
+  /// isNDEFEnabled checks if the device supports and enable reading NDEF tags
+  static Future<bool> get isNDEFEnabled async {
+    final supported = await _channel.invokeMethod("readNDEFEnabled");
+    assert(supported is bool);
+    return supported as bool;
+  }
 }
 
 /// NFCReaderMode is an interface for different reading modes
