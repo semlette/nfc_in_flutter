@@ -8,8 +8,7 @@ import './exceptions.dart';
 
 class NFC {
   static MethodChannel _channel = MethodChannel("nfc_in_flutter");
-  static const EventChannel _eventChannel =
-      const EventChannel("nfc_in_flutter/tags");
+  static const EventChannel _eventChannel = const EventChannel("nfc_in_flutter/tags");
 
   static Stream<dynamic> _tagStream;
 
@@ -62,8 +61,7 @@ class NFC {
     });
   }
 
-  static void _startReadingNDEF(
-      bool once, String alertMessage, NFCReaderMode readerMode) {
+  static void _startReadingNDEF(bool once, String alertMessage, NFCReaderMode readerMode) {
     // Start reading
     Map arguments = {
       "scan_once": once,
@@ -128,7 +126,7 @@ class NFC {
       _startReadingNDEF(
         once,
         alertMessage,
-        const NFCNormalReaderMode(),
+        readerMode,
       );
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
@@ -268,6 +266,8 @@ class NFCNormalReaderMode implements NFCReaderMode {
 /// tags with.
 class NFCDispatchReaderMode implements NFCReaderMode {
   String get name => "dispatch";
+
+  const NFCDispatchReaderMode();
 
   @override
   Map get _options {
