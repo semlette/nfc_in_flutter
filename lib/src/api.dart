@@ -229,6 +229,13 @@ class NFC {
     assert(supported is bool);
     return supported as bool;
   }
+
+  /// stopNDEFReading stop reading NDEF tags
+  static Future<bool> get stopNDEFReading async {
+    final supported = await _channel.invokeMethod("stopNDEFReading");
+    assert(supported is bool);
+    return supported as bool;
+  }
 }
 
 /// NFCReaderMode is an interface for different reading modes
