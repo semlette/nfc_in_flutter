@@ -8,8 +8,7 @@ import './exceptions.dart';
 
 class NFC {
   static MethodChannel _channel = MethodChannel("nfc_in_flutter");
-  static const EventChannel _eventChannel =
-      const EventChannel("nfc_in_flutter/tags");
+  static const EventChannel _eventChannel = const EventChannel("nfc_in_flutter/tags");
 
   static Stream<dynamic> _tagStream;
 
@@ -62,8 +61,7 @@ class NFC {
     });
   }
 
-  static void _startReadingNDEF(
-      bool once, String alertMessage, NFCReaderMode readerMode) {
+  static void _startReadingNDEF(bool once, String alertMessage, NFCReaderMode readerMode) {
     // Start reading
     Map arguments = {
       "scan_once": once,
@@ -128,7 +126,7 @@ class NFC {
       _startReadingNDEF(
         once,
         alertMessage,
-        const NFCNormalReaderMode(),
+        readerMode,
       );
     } on PlatformException catch (err) {
       if (err.code == "NFCMultipleReaderModes") {
@@ -224,6 +222,20 @@ class NFC {
     assert(supported is bool);
     return supported as bool;
   }
+
+  /// isNDEFEnabled checks if the device supports and enable reading NDEF tags
+  static Future<bool> get isNDEFEnabled async {
+    final supported = await _channel.invokeMethod("readNDEFEnabled");
+    assert(supported is bool);
+    return supported as bool;
+  }
+
+  /// stopNDEFReading stop reading NDEF tags
+  static Future<bool> get stopNDEFReading async {
+    final supported = await _channel.invokeMethod("stopNDEFReading");
+    assert(supported is bool);
+    return supported as bool;
+  }
 }
 
 /// NFCReaderMode is an interface for different reading modes
@@ -261,6 +273,8 @@ class NFCNormalReaderMode implements NFCReaderMode {
 /// tags with.
 class NFCDispatchReaderMode implements NFCReaderMode {
   String get name => "dispatch";
+
+  const NFCDispatchReaderMode();
 
   @override
   Map get _options {

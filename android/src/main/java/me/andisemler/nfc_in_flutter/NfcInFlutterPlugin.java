@@ -76,7 +76,13 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
     public void onMethodCall(MethodCall call, Result result) {
         switch (call.method) {
             case "readNDEFSupported":
+                result.success(nfcIsSupported());
+                break;
+            case "readNDEFEnabled":
                 result.success(nfcIsEnabled());
+                break;
+            case "stopNDEFReading":
+                result.success(stopReading());
                 break;
             case "startNDEFReading":
                 if (!(call.arguments instanceof HashMap)) {
@@ -137,8 +143,21 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     private Boolean nfcIsEnabled() {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(activity);
-        if (adapter == null) return false;
-        return adapter.isEnabled();
+        return adapter != null && adapter.isEnabled();
+    }
+
+    private Boolean nfcIsSupported() {
+        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(activity);
+        return adapter != null;
+    }
+
+    private Boolean stopReading() {
+        adapter = NfcAdapter.getDefaultAdapter(activity);
+        if(adapter == null) return false;
+        adapter.disableReaderMode(activity);
+        adapter.disableForegroundDispatch(activity);
+        adapter = null;
+        return true;
     }
 
     private void startReading(boolean noSounds) {
