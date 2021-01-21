@@ -312,9 +312,9 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     private Map<String, Object> formatNDEFMessageToResult(Ndef ndef, NdefMessage message) {
         final Map<String, Object> result = new HashMap<>();
-        List<Map<String, String>> records = new ArrayList<>();
+        List<Map<String, Object>> records = new ArrayList<>();
         for (NdefRecord record : message.getRecords()) {
-            Map<String, String> recordMap = new HashMap<>();
+            Map<String, Object> recordMap = new HashMap<>();
             byte[] recordPayload = record.getPayload();
             Charset charset = StandardCharsets.UTF_8;
             short tnf = record.getTnf();
@@ -322,6 +322,7 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
             if (tnf == NdefRecord.TNF_WELL_KNOWN && Arrays.equals(type, NdefRecord.RTD_TEXT)) {
                 charset = ((recordPayload[0] & 128) == 0) ? StandardCharsets.UTF_8 : StandardCharsets.UTF_16;
             }
+            recordMap.put("rawPayload", recordPayload);
 
             // If the record's tnf is well known and the RTD is set to URI,
             // the URL prefix should be added to the payload
