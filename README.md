@@ -1,3 +1,6 @@
+# versions
+I will endeavour to keep this up to date but it's not guaranteed
+
 # nfc_in_flutter
 
 NFC in Flutter is a plugin for reading and writing NFC tags in Flutter. It works on both Android and iOS with a simple stream interface.
