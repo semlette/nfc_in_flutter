@@ -1,26 +1,26 @@
 name: nfc_in_flutter
 description: Flutter plugin to read and write NFC tags on both Android and iOS. Currently it only supports reading NDEF formatted tags.
-version: 2.0.5
+version: 3.0.0
 homepage: https://github.com/semlette/nfc_in_flutter
 repository: https://github.com/semlette/nfc_in_flutter
 
 environment:
-    sdk: ">=2.1.0 <3.0.0"
-    flutter: ">=1.10.0"
+  sdk: '>=2.12.0 <3.0.0'
+  flutter: ">=1.10.0"
 
 dependencies:
-    flutter:
-        sdk: flutter
+  flutter:
+    sdk: flutter
 
 dev_dependencies:
-    flutter_test:
-        sdk: flutter
+  flutter_test:
+    sdk: flutter
 
 flutter:
-    plugin:
-        platforms:
-            android:
-                package: me.andisemler.nfc_in_flutter
-                pluginClass: NfcInFlutterPlugin
-            ios:
-                pluginClass: NfcInFlutterPlugin
+  plugin:
+    platforms:
+      android:
+        package: me.andisemler.nfc_in_flutter
+        pluginClass: NfcInFlutterPlugin
+      ios:
+        pluginClass: NfcInFlutterPlugin

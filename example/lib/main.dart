@@ -51,7 +51,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   // _stream is a subscription to the stream returned by `NFC.read()`.
   // The subscription is stored in state so the stream can be canceled later
-  StreamSubscription<NDEFMessage> _stream;
+  StreamSubscription<NDEFMessage>? _stream;
 
   // _tags is a list of scanned tags
   List<NDEFMessage> _tags = [];
@@ -146,12 +146,12 @@ class _MyAppState extends State<MyApp> {
             Builder(
               builder: (context) {
                 if (!_supportsNFC) {
-                  return FlatButton(
+                  return TextButton(
                     child: Text("NFC unsupported"),
                     onPressed: null,
                   );
                 }
-                return FlatButton(
+                return TextButton(
                   child:
                       Text(_stream == null ? "Start reading" : "Stop reading"),
                   onPressed: () {

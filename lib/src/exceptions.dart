@@ -33,46 +33,46 @@ class NFCSessionTimeoutException implements Exception {
 /// NFCSessionTerminatedUnexpectedlyException is thrown on iOS when "The reader
 /// session terminated unexpectedly".
 class NFCSessionTerminatedUnexpectedlyException implements Exception {
-  final String message;
+  final String? message;
 
   NFCSessionTerminatedUnexpectedlyException(this.message);
 
   @override
-  String toString() => message;
+  String toString() => message ?? 'NFCSessionTerminatedUnexpectedlyException';
 }
 
 /// NFCSystemIsBusyException is thrown on iOS when "the reader session
 /// failed because the system is busy".
 class NFCSystemIsBusyException implements Exception {
-  final String message;
+  final String? message;
 
   NFCSystemIsBusyException(this.message);
 
   @override
-  String toString() => message;
+  String toString() => message ?? 'NFCSystemIsBusyException';
 }
 
 /// NFCIOException is an I/O exception. Will happen if a tag is lost while being
 /// read or a tag could not be connected to. NFCIOException is only thrown on
 /// Android.
 class NFCIOException extends IOException {
-  final String message;
+  final String? message;
 
   NFCIOException(this.message);
 
   @override
-  String toString() => message;
+  String toString() => message ?? 'NFCIOException';
 }
 
 /// NDEFBadFormatException is thrown when a tag is read as NDEF, but it is not
 /// properly formatted.
 class NDEFBadFormatException implements Exception {
-  final String message;
+  final String? message;
 
   NDEFBadFormatException(this.message);
 
   @override
-  String toString() => message;
+  String toString() => message ?? 'NDEFBadFormatException';
 }
 
 /// NFCTagNotWritableException is thrown when an unwritable tag is 'written to'.
