@@ -1,5 +1,6 @@
 # versions
-I will endeavour to keep this up to date but it's not guaranteed
+I will endeavour to keep this up to date but it's not guaranteed.
+
 Updated to use flutter 2.0 null safety
 
 # nfc_in_flutter
