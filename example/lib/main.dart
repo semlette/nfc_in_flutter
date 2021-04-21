@@ -20,6 +20,13 @@ class ExampleApp extends StatelessWidget {
           return ListView(
             children: <Widget>[
               ListTile(
+                title: const Text("NFC Supported"),
+                onTap: () async {
+                  bool supported = await NFC.isNDEFSupported;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('NFC supported = ${supported}')));
+                },
+              ),
+              ListTile(
                 title: const Text("Read NFC"),
                 onTap: () {
                   Navigator.pushNamed(context, "/read_example");
