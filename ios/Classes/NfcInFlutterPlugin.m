@@ -490,7 +490,7 @@
             }
             [tag readNDEFWithCompletionHandler:^(NFCNDEFMessage * _Nullable message, NSError * _Nullable error) {
                 
-                if (error != nil) {
+                if (error != nil && error.code != 403) {
                     NSLog(@"ERROR: %@", error.localizedDescription);
                     return;
                 }

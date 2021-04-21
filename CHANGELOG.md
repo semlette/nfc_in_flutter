@@ -1,3 +1,6 @@
+## 2.0.6
+-   Flutter 2.0 null safety.  This is the first update for null safety so may not fully function.
+
 ## 2.0.5
 
 -   Better reading reliability on iOS
