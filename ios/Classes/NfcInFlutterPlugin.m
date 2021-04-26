@@ -389,8 +389,15 @@
             continue;
         } else if ([@"well_known" isEqualToString:recordTNF]) {
             if ([@"T" isEqualToString:recordType]) {
-                NSLocale* locale = [NSLocale localeWithLocaleIdentifier:recordLanguageCode];
-                NFCNDEFPayload* ndefRecord = [NFCNDEFPayload wellKnownTypeTextPayloadWithString:recordPayload locale:locale];
+                int prefixByte = 0x02;
+                NSMutableData *payloadData = [[NSMutableData alloc] initWithBytes:(void *) &prefixByte length:1];
+                [payloadData appendData:[recordLanguageCode dataUsingEncoding:NSUTF8StringEncoding]];
+                [payloadData appendData:[recordPayload dataUsingEncoding:NSUTF8StringEncoding]];
+                NFCNDEFPayload *ndefRecord = [[NFCNDEFPayload alloc]
+                                              initWithFormat:NFCTypeNameFormatNFCWellKnown
+                                              type:[@"T" dataUsingEncoding:NSUTF8StringEncoding]
+                                              identifier:[recordID dataUsingEncoding:NSUTF8StringEncoding]
+                                              payload:payloadData];
                 [ndefRecords addObject:ndefRecord];
                 continue;
             } else if ([@"U" isEqualToString:recordType]) {
