@@ -5,7 +5,7 @@
     dispatch_queue_t dispatchQueue;
 }
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
-    dispatch_queue_t dispatchQueue = dispatch_queue_create("me.andisemler.nfc_in_flutter.dispatch_queue", NULL);
+    dispatch_queue_t dispatchQueue = dispatch_queue_create("dev.semler.nfc_in_flutter.dispatch_queue", NULL);
     
     FlutterMethodChannel* channel = [FlutterMethodChannel
                                      methodChannelWithName:@"nfc_in_flutter"

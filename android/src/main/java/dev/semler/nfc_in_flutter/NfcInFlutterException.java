@@ -1,4 +1,4 @@
-package me.andisemler.nfc_in_flutter;
+package dev.semler.nfc_in_flutter;
 
 class NfcInFlutterException extends Exception {
     String code;

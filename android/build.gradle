@@ -1,4 +1,4 @@
-group 'me.andisemler.nfc_in_flutter'
+group 'dev.semler.nfc_in_flutter'
 version '1.0-SNAPSHOT'
 
 buildscript {
