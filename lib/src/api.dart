@@ -11,10 +11,10 @@ class NFC {
   static const EventChannel _eventChannel =
       const EventChannel("nfc_in_flutter/tags");
 
-  static Stream<dynamic> _tagStream;
+  static Stream<dynamic>? _tagStream;
 
-  static void _createTagStream() {
-    _tagStream = _eventChannel.receiveBroadcastStream().where((tag) {
+  static Stream<dynamic> _createTagStream() {
+    return _eventChannel.receiveBroadcastStream().where((tag) {
       // In the future when more tag types are supported, this must be changed.
       assert(tag is Map);
       return tag["message_type"] == "ndef";
@@ -93,14 +93,12 @@ class NFC {
     /// This is ignored on iOS as it only has one reading mode.
     NFCReaderMode readerMode = const NFCNormalReaderMode(),
   }) {
-    if (_tagStream == null) {
-      _createTagStream();
-    }
+    _tagStream ??= _createTagStream();
     // Create a StreamController to wrap the tag stream. Any errors will be
     // converted to their matching exception classes. The controller stream will
     // be closed if the errors are fatal.
     StreamController<NDEFMessage> controller = StreamController();
-    final stream = once ? _tagStream.take(1) : _tagStream;
+    final stream = once ? _tagStream!.take(1) : _tagStream!;
     // Listen for tag reads.
     final subscription = stream.listen(
       (message) => controller.add(message),
@@ -112,9 +110,9 @@ class NFC {
         controller.addError(error);
         controller.close();
       },
-      onDone: () {
+      onDone: () async {
         _tagStream = null;
-        return controller.close();
+        await controller.close();
       },
       // cancelOnError: false
       // cancelOnError cannot be used as the stream would cancel BEFORE the error
@@ -163,14 +161,12 @@ class NFC {
     /// readerMode specifies which mode the reader should use.
     NFCReaderMode readerMode = const NFCNormalReaderMode(),
   }) {
-    if (_tagStream == null) {
-      _createTagStream();
-    }
+    _tagStream ??= _createTagStream();
 
     StreamController<NDEFTag> controller = StreamController();
 
     int writes = 0;
-    StreamSubscription<NFCMessage> stream = _tagStream.listen(
+    final stream = _tagStream!.listen(
       (msg) async {
         NDEFMessage message = msg;
         if (message.tag.writable) {
@@ -194,9 +190,9 @@ class NFC {
         controller.addError(error);
         controller.close();
       },
-      onDone: () {
+      onDone: () async {
         _tagStream = null;
-        return controller.close();
+        await controller.close();
       },
       // cancelOnError: false
       // cancelOnError cannot be used as the stream would cancel BEFORE the error
@@ -274,22 +270,22 @@ enum MessageType {
 
 abstract class NFCMessage {
   MessageType get messageType;
-  String get id;
+  String? get id;
 
   NFCTag get tag;
 }
 
 abstract class NFCTag {
-  String get id;
+  String? get id;
   bool get writable;
 }
 
 class NDEFMessage implements NFCMessage {
-  final String id;
-  String type;
+  final String? id;
+  final String? type;
   final List<NDEFRecord> records;
 
-  NDEFMessage.withRecords(this.records, {this.id});
+  NDEFMessage.withRecords(this.records, {this.id}) : type = null;
 
   NDEFMessage(this.type, this.records) : id = null;
 
@@ -297,7 +293,7 @@ class NDEFMessage implements NFCMessage {
 
   // payload returns the payload of the first non-empty record. If all records
   // are empty it will return null.
-  String get payload {
+  String? get payload {
     for (var record in records) {
       if (record.payload != "") {
         return record.payload;
@@ -318,7 +314,7 @@ class NDEFMessage implements NFCMessage {
 
   // data returns the contents of the first non-empty record. If all records
   // are empty it will return null.
-  String get data {
+  String? get data {
     for (var record in records) {
       if (record.data != "") {
         return record.data;
@@ -355,7 +351,7 @@ enum NFCTypeNameFormat {
 }
 
 class NDEFRecord {
-  final String id;
+  final String? id;
   final String payload;
   final String type;
   final String data;
@@ -364,11 +360,11 @@ class NDEFRecord {
   /// languageCode will be the language code of a well known text record. If the
   /// record is not created with the well known TNF and Text RTD, this will be
   /// null.
-  final String languageCode;
+  final String? languageCode;
 
   /// rawPayload contains the raw payload provided by the reader.
   /// It will only be set when reading NDEF tags. Otherwise it will be null.
-  final Uint8List rawPayload;
+  final Uint8List? rawPayload;
 
   NDEFRecord.empty()
       : id = null,
@@ -477,25 +473,19 @@ class NDEFRecord {
 
     return {
       "id": id ?? "",
-      "payload": payload ?? "",
-      "type": type ?? "",
-      "tnf": tnf ?? "unknown",
+      "payload": payload,
+      "type": type,
+      "tnf": tnf,
       "languageCode": languageCode,
     };
   }
 }
 
 class NDEFTag implements NFCTag {
-  final String id;
+  final String? id;
   final bool writable;
 
   NDEFTag._internal(this.id, this.writable);
-
-  NDEFTag._fromMap(Map<String, dynamic> map)
-      : assert(map["id"] is String),
-        assert(map["writable" is bool]),
-        id = map["id"],
-        writable = map["writable"];
 
   Future write(NDEFMessage message) async {
     if (!writable) {
@@ -503,13 +493,15 @@ class NDEFTag implements NFCTag {
     }
     try {
       return NFC._channel.invokeMethod("writeNDEF", {
+        // TODO: Is id ever used by the native layer?
         "id": id,
         "message": message._toMap(),
       });
     } on PlatformException catch (e) {
       switch (e.code) {
         case "NFCUnexpectedError":
-          throw Exception("nfc: unexpected error: " + e.message);
+          final msg = 'nfc: unexpected error';
+          throw Exception(e.message != null ? "$msg: ${e.message}" : msg);
         case "IOError":
           throw NFCIOException(e.message);
         case "NFCTagUnavailable":

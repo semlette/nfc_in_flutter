@@ -8,7 +8,7 @@ class ReadExampleScreen extends StatefulWidget {
 }
 
 class _ReadExampleScreenState extends State<ReadExampleScreen> {
-  StreamSubscription<NDEFMessage> _stream;
+  StreamSubscription<NDEFMessage>? _stream;
 
   void _startScanning() {
     setState(() {
@@ -71,7 +71,7 @@ class _ReadExampleScreenState extends State<ReadExampleScreen> {
         title: const Text("Read NFC example"),
       ),
       body: Center(
-          child: RaisedButton(
+          child: ElevatedButton(
         child: const Text("Toggle scan"),
         onPressed: _toggleScan,
       )),

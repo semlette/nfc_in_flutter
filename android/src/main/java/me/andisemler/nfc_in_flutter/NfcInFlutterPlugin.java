@@ -171,15 +171,17 @@ public class NfcInFlutterPlugin implements MethodCallHandler,
 
     @Override
     public void onCancel(Object args) {
-        switch (currentReaderMode) {
-            case NORMAL_READER_MODE:
-                adapter.disableReaderMode(activity);
-                break;
-            case DISPATCH_READER_MODE:
-                adapter.disableForegroundDispatch(activity);
-                break;
-            default:
-                Log.e(LOG_TAG, "unknown reader mode: " + currentReaderMode);
+        if (adapter != null) {
+            switch (currentReaderMode) {
+                case NORMAL_READER_MODE:
+                    adapter.disableReaderMode(activity);
+                    break;
+                case DISPATCH_READER_MODE:
+                    adapter.disableForegroundDispatch(activity);
+                    break;
+                default:
+                    Log.e(LOG_TAG, "unknown reader mode: " + currentReaderMode);
+            }
         }
         events = null;
     }
